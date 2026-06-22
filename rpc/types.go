@@ -21,6 +21,12 @@ import (
 	"fmt"
 )
 
+const (
+	TraceTypeDefault  = "default"
+	TraceTypeCall     = "call"
+	TraceTypePrestate = "prestate"
+)
+
 // Block represents an Ethereum block.
 type Block struct {
 	Number           Integer         `json:"number"`
@@ -81,6 +87,40 @@ func (b *Block) Uncles() ([]Bytes32, error) {
 	return uncles, nil
 }
 
+// CallFrame represents a single call frame of call tracer.
+type CallFrame struct {
+	From    Address     `json:"from"`
+	Gas     Integer     `json:"gas"`
+	GasUsed Integer     `json:"gasUsed"`
+	To      Address     `json:"to"`
+	Input   Bytes       `json:"input"`
+	Output  Bytes       `json:"output,omitempty"`
+	Value   Integer     `json:"value"`
+	Type    string      `json:"type"`
+	Calls   []CallFrame `json:"calls,omitempty"`
+}
+
+// StructLog represents a single EVM opcode execution step.
+type StructLog struct {
+	Pc      uint64            `json:"pc"`
+	Op      string            `json:"op"`
+	Gas     uint64            `json:"gas"`
+	GasCost uint64            `json:"gasCost"`
+	Depth   int               `json:"depth"`
+	Stack   []string          `json:"stack"`
+	Memory  []string          `json:"memory"`
+	Storage map[string]string `json:"storage,omitempty"`
+}
+
+// PrestateAccount represents the prestate of an account for prestate rracer.
+type PrestateAccount struct {
+	Balance  Integer           `json:"balance"`
+	Nonce    uint64            `json:"nonce"`
+	Code     Bytes             `json:"code,omitempty"`
+	CodeHash string            `json:"codeHash,omitempty"`
+	Storage  map[string]string `json:"storage,omitempty"`
+}
+
 // Transaction represents an Ethereum transaction.
 type Transaction struct {
 	Hash        Bytes32  `json:"hash"`
@@ -99,4 +139,55 @@ type Transaction struct {
 	V           Integer  `json:"v"`
 	R           Bytes    `json:"r"`
 	S           Bytes    `json:"s"`
+}
+
+// TransactionTrace represents a single transaction trace.
+type TransactionTrace struct {
+	TxHash Bytes32         `json:"txHash"`
+	Type   string          `json:"-"`
+	Result json.RawMessage `json:"result"`
+}
+
+// Return call tracer result.
+func (t *TransactionTrace) CallTraceResult() (*CallFrame, error) {
+	if t.Type != TraceTypeCall {
+		return nil, fmt.Errorf("trace type is %q, not %q", t.Type, TraceTypeCall)
+	}
+	var c CallFrame
+	if err := json.Unmarshal(t.Result, &c); err != nil {
+		return nil, fmt.Errorf("unmarshal call frame: %w", err)
+	}
+	return &c, nil
+}
+
+// Return default tracer result.
+func (t *TransactionTrace) DefaultTraceResult() (*TransactionTraceResult, error) {
+	if t.Type != TraceTypeDefault {
+		return nil, fmt.Errorf("trace type is %q, not %q", t.Type, TraceTypeDefault)
+	}
+	var r TransactionTraceResult
+	if err := json.Unmarshal(t.Result, &r); err != nil {
+		return nil, fmt.Errorf("unmarshal structLogs result: %w", err)
+	}
+	return &r, nil
+}
+
+// Return prestate tracer result.
+func (t *TransactionTrace) PrestateTraceResult() (map[string]PrestateAccount, error) {
+	if t.Type != TraceTypePrestate {
+		return nil, fmt.Errorf("trace type is %q, not %q", t.Type, TraceTypePrestate)
+	}
+	var m map[string]PrestateAccount
+	if err := json.Unmarshal(t.Result, &m); err != nil {
+		return nil, fmt.Errorf("unmarshal prestate: %w", err)
+	}
+	return m, nil
+}
+
+// TransactionTraceResult stores result of default tracer.
+type TransactionTraceResult struct {
+	Logs        []StructLog `json:"structLogs"`
+	Gas         uint64      `json:"gas"`
+	Failed      bool        `json:"failed"`
+	ReturnValue string      `json:"returnValue"`
 }

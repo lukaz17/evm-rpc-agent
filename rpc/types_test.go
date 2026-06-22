@@ -24,30 +24,16 @@ import (
 	"testing"
 )
 
-func loadBlocksJSON(t *testing.T) map[string]json.RawMessage {
-	t.Helper()
-	rel := filepath.Join("blobs", "blocks.json")
-	data, err := os.ReadFile(rel)
-	if err != nil {
-		t.Fatalf("read %s: %v", rel, err)
-	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		t.Fatalf("unmarshal blocks.json: %v", err)
-	}
-	return raw
-}
-
 func TestBlock_UnmarshalJSON(t *testing.T) {
-	rawBlocks := loadBlocksJSON(t)
+	rawBlocks := loadJson(t, "blocks.json")
 
 	tests := []struct {
-		name         string
-		key          string
-		wantHash     string
-		wantNumber   uint64
-		wantGasUsed  uint64
-		wantTxCount  int
+		name        string
+		key         string
+		wantHash    string
+		wantNumber  uint64
+		wantGasUsed uint64
+		wantTxCount int
 	}{
 		{
 			name:        "empty tx block",
@@ -96,7 +82,7 @@ func TestBlock_UnmarshalJSON(t *testing.T) {
 }
 
 func TestBlock_FieldValues_EmptyTX(t *testing.T) {
-	rawBlocks := loadBlocksJSON(t)
+	rawBlocks := loadJson(t, "blocks.json")
 
 	var block Block
 	if err := json.Unmarshal(rawBlocks["0x42957"], &block); err != nil {
@@ -140,7 +126,7 @@ func TestBlock_FieldValues_EmptyTX(t *testing.T) {
 }
 
 func TestBlock_FieldValues_WithTX(t *testing.T) {
-	rawBlocks := loadBlocksJSON(t)
+	rawBlocks := loadJson(t, "blocks.json")
 
 	var block Block
 	if err := json.Unmarshal(rawBlocks["0x1a33b7"], &block); err != nil {
@@ -167,7 +153,7 @@ func TestBlock_FieldValues_WithTX(t *testing.T) {
 }
 
 func TestBlock_TransactionsHashes_EmptyArray(t *testing.T) {
-	rawBlocks := loadBlocksJSON(t)
+	rawBlocks := loadJson(t, "blocks.json")
 
 	var block Block
 	if err := json.Unmarshal(rawBlocks["0x42957"], &block); err != nil {
@@ -184,7 +170,7 @@ func TestBlock_TransactionsHashes_EmptyArray(t *testing.T) {
 }
 
 func TestBlock_TransactionsFull(t *testing.T) {
-	rawBlocks := loadBlocksJSON(t)
+	rawBlocks := loadJson(t, "blocks.json")
 
 	var block Block
 	if err := json.Unmarshal(rawBlocks["0x1a33b7"], &block); err != nil {
@@ -332,7 +318,7 @@ func TestTransaction_UnmarshalJSON_WithInput(t *testing.T) {
 }
 
 func TestBlock_RoundTrip(t *testing.T) {
-	rawBlocks := loadBlocksJSON(t)
+	rawBlocks := loadJson(t, "blocks.json")
 
 	for key, raw := range rawBlocks {
 		t.Run(key, func(t *testing.T) {
@@ -443,4 +429,374 @@ func TestTransaction_RoundTrip(t *testing.T) {
 	if tx1.S.Hex() != tx2.S.Hex() {
 		t.Errorf("s mismatch after round-trip")
 	}
+}
+
+func TestTransactionTrace_CallTraceResult(t *testing.T) {
+	raw := loadJsonN(t, "blockCallTraces.json")
+
+	tracesJSON := raw["0x4870d2"]
+	var traces []TransactionTrace
+	for _, tj := range tracesJSON {
+		var tr TransactionTrace
+		if err := json.Unmarshal(tj, &tr); err != nil {
+			t.Fatalf("unmarshal trace: %v", err)
+		}
+		tr.Type = TraceTypeCall
+		traces = append(traces, tr)
+	}
+
+	if len(traces) != 8 {
+		t.Fatalf("expected 8 traces, got %d", len(traces))
+	}
+
+	t.Run("simple call", func(t *testing.T) {
+		tr := traces[0]
+		wantHash := "0xc237db67c16416d8f129cb1d5c36f801b2e3625fae7f29b98ca9e349e5752952"
+		if tr.TxHash.Hex() != wantHash {
+			t.Errorf("txHash = %s, want %s", tr.TxHash.Hex(), wantHash)
+		}
+
+		res, err := tr.CallTraceResult()
+		if err != nil {
+			t.Fatalf("CallTraceResult: %v", err)
+		}
+		if res.From.Hex() != "0xa30d8157911ef23c46c0eb71889efe6a648a41f7" {
+			t.Errorf("from = %s", res.From.Hex())
+		}
+		if res.To.Hex() != "0xdef426319baf76cb4359e49268e05023b834f4df" {
+			t.Errorf("to = %s", res.To.Hex())
+		}
+		if res.Type != "CALL" {
+			t.Errorf("type = %s, want CALL", res.Type)
+		}
+		if len(res.Calls) != 0 {
+			t.Errorf("expected no sub-calls, got %d", len(res.Calls))
+		}
+	})
+
+	t.Run("nested calls", func(t *testing.T) {
+		tr := traces[6]
+		res, err := tr.CallTraceResult()
+		if err != nil {
+			t.Fatalf("CallTraceResult: %v", err)
+		}
+		if len(res.Calls) == 0 {
+			t.Fatal("expected sub-calls")
+		}
+		if res.Calls[0].Type != "CALL" {
+			t.Errorf("first sub-call type = %s, want CALL", res.Calls[0].Type)
+		}
+		if len(res.Calls[1].Calls) == 0 {
+			t.Fatal("expected nested sub-calls at depth 2")
+		}
+		if res.Calls[1].Calls[0].Type != "CALL" {
+			t.Errorf("nested sub-call type = %s, want CALL", res.Calls[1].Calls[0].Type)
+		}
+	})
+}
+
+func TestTransactionTrace_DefaultTraceResult(t *testing.T) {
+	raw := loadJsonN(t, "blockTraces.json")
+
+	tracesJSON := raw["0x1a33b7"]
+	var traces []TransactionTrace
+	for _, tj := range tracesJSON {
+		var tr TransactionTrace
+		if err := json.Unmarshal(tj, &tr); err != nil {
+			t.Fatalf("unmarshal trace: %v", err)
+		}
+		tr.Type = TraceTypeDefault
+		traces = append(traces, tr)
+	}
+
+	if len(traces) != 9 {
+		t.Fatalf("expected 9 traces, got %d", len(traces))
+	}
+
+	t.Run("first trace fields", func(t *testing.T) {
+		tr := traces[0]
+		wantHash := "0xc2c239e7c20fd3b5dccfc42e91bd4ae4a68727cfe184af3ea1ad7824cc13a686"
+		if tr.TxHash.Hex() != wantHash {
+			t.Errorf("txHash = %s, want %s", tr.TxHash.Hex(), wantHash)
+		}
+
+		res, err := tr.DefaultTraceResult()
+		if err != nil {
+			t.Fatalf("DefaultTraceResult: %v", err)
+		}
+		if res.Gas != 21000 {
+			t.Errorf("gas = %d, want 21000", res.Gas)
+		}
+		if res.Failed {
+			t.Errorf("failed = true, want false")
+		}
+		if res.ReturnValue != "0x" {
+			t.Errorf("returnValue = %s, want 0x", res.ReturnValue)
+		}
+		if len(res.Logs) != 0 {
+			t.Errorf("expected empty structLogs, got %d", len(res.Logs))
+		}
+	})
+
+	t.Run("trace with structLogs", func(t *testing.T) {
+		tr := traces[8]
+		res, err := tr.DefaultTraceResult()
+		if err != nil {
+			t.Fatalf("DefaultTraceResult: %v", err)
+		}
+		if len(res.Logs) == 0 {
+			t.Fatal("expected non-empty structLogs")
+		}
+		if res.Logs[0].Op != "PUSH1" {
+			t.Errorf("first op = %s, want PUSH1", res.Logs[0].Op)
+		}
+		if res.Logs[0].Depth != 1 {
+			t.Errorf("first depth = %d, want 1", res.Logs[0].Depth)
+		}
+	})
+}
+
+func TestTransactionTrace_PrestateTraceResult(t *testing.T) {
+	raw := loadJsonN(t, "blockPrestateTraces.json")
+
+	tracesJSON := raw["0x4870d2"]
+	var traces []TransactionTrace
+	for _, tj := range tracesJSON {
+		var tr TransactionTrace
+		if err := json.Unmarshal(tj, &tr); err != nil {
+			t.Fatalf("unmarshal trace: %v", err)
+		}
+		tr.Type = TraceTypePrestate
+		traces = append(traces, tr)
+	}
+
+	if len(traces) != 8 {
+		t.Fatalf("expected 8 traces, got %d", len(traces))
+	}
+
+	t.Run("simple prestate", func(t *testing.T) {
+		tr := traces[0]
+		wantHash := "0xc237db67c16416d8f129cb1d5c36f801b2e3625fae7f29b98ca9e349e5752952"
+		if tr.TxHash.Hex() != wantHash {
+			t.Errorf("txHash = %s, want %s", tr.TxHash.Hex(), wantHash)
+		}
+
+		res, err := tr.PrestateTraceResult()
+		if err != nil {
+			t.Fatalf("PrestateTraceResult: %v", err)
+		}
+
+		addr := "0xa30d8157911ef23c46c0eb71889efe6a648a41f7"
+		acct, ok := res[addr]
+		if !ok {
+			t.Fatalf("expected address %s in prestate result", addr)
+		}
+		if acct.Nonce != 10342 {
+			t.Errorf("nonce = %d, want 10342", acct.Nonce)
+		}
+	})
+
+	t.Run("prestate with code and storage", func(t *testing.T) {
+		tr := traces[4]
+		res, err := tr.PrestateTraceResult()
+		if err != nil {
+			t.Fatalf("PrestateTraceResult: %v", err)
+		}
+
+		contractAddr := "0x6d5cac36c1ae39f41d52393b7a425d0a610ad9f2"
+		acct, ok := res[contractAddr]
+		if !ok {
+			t.Fatalf("expected address %s in prestate result", contractAddr)
+		}
+		if len(acct.Code) == 0 {
+			t.Errorf("expected non-empty code for %s", contractAddr)
+		}
+		if acct.CodeHash == "" {
+			t.Errorf("expected non-empty codeHash for %s", contractAddr)
+		}
+		if len(acct.Storage) == 0 {
+			t.Errorf("expected non-empty storage for %s", contractAddr)
+		}
+	})
+}
+
+func TestTransactionTrace_TypeMismatch(t *testing.T) {
+	rawDefault := loadJsonN(t, "blockTraces.json")
+	rawCall := loadJsonN(t, "blockCallTraces.json")
+	rawPrestate := loadJsonN(t, "blockPrestateTraces.json")
+
+	var defaultTrace, callTrace, prestateTrace TransactionTrace
+	if err := json.Unmarshal(rawDefault["0x1a33b7"][0], &defaultTrace); err != nil {
+		t.Fatalf("unmarshal default trace: %v", err)
+	}
+	if err := json.Unmarshal(rawCall["0x4870d2"][0], &callTrace); err != nil {
+		t.Fatalf("unmarshal call trace: %v", err)
+	}
+	if err := json.Unmarshal(rawPrestate["0x4870d2"][0], &prestateTrace); err != nil {
+		t.Fatalf("unmarshal prestate trace: %v", err)
+	}
+	defaultTrace.Type = TraceTypeDefault
+	callTrace.Type = TraceTypeCall
+	prestateTrace.Type = TraceTypePrestate
+
+	tests := []struct {
+		name  string
+		trace TransactionTrace
+		check func(t *testing.T, tr TransactionTrace)
+	}{
+		{
+			name:  "default/CallTraceResult",
+			trace: defaultTrace,
+			check: func(t *testing.T, tr TransactionTrace) {
+				_, err := tr.CallTraceResult()
+				if err == nil {
+					t.Error("expected error for CallTraceResult on default trace")
+				}
+			},
+		},
+		{
+			name:  "default/PrestateTraceResult",
+			trace: defaultTrace,
+			check: func(t *testing.T, tr TransactionTrace) {
+				_, err := tr.PrestateTraceResult()
+				if err == nil {
+					t.Error("expected error for PrestateTraceResult on default trace")
+				}
+			},
+		},
+		{
+			name:  "call/DefaultTraceResult",
+			trace: callTrace,
+			check: func(t *testing.T, tr TransactionTrace) {
+				_, err := tr.DefaultTraceResult()
+				if err == nil {
+					t.Error("expected error for DefaultTraceResult on call trace")
+				}
+			},
+		},
+		{
+			name:  "call/PrestateTraceResult",
+			trace: callTrace,
+			check: func(t *testing.T, tr TransactionTrace) {
+				_, err := tr.PrestateTraceResult()
+				if err == nil {
+					t.Error("expected error for PrestateTraceResult on call trace")
+				}
+			},
+		},
+		{
+			name:  "prestate/DefaultTraceResult",
+			trace: prestateTrace,
+			check: func(t *testing.T, tr TransactionTrace) {
+				_, err := tr.DefaultTraceResult()
+				if err == nil {
+					t.Error("expected error for DefaultTraceResult on prestate trace")
+				}
+			},
+		},
+		{
+			name:  "prestate/CallTraceResult",
+			trace: prestateTrace,
+			check: func(t *testing.T, tr TransactionTrace) {
+				_, err := tr.CallTraceResult()
+				if err == nil {
+					t.Error("expected error for CallTraceResult on prestate trace")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.check(t, tt.trace)
+		})
+	}
+}
+
+func TestTransactionTrace_RoundTrip(t *testing.T) {
+	rawDefault := loadJsonN(t, "blockTraces.json")
+	rawCall := loadJsonN(t, "blockCallTraces.json")
+	rawPrestate := loadJsonN(t, "blockPrestateTraces.json")
+
+	t.Run("default", func(t *testing.T) {
+		var tr TransactionTrace
+		if err := json.Unmarshal(rawDefault["0x1a33b7"][0], &tr); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		data, err := json.Marshal(&tr)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		var tr2 TransactionTrace
+		if err := json.Unmarshal(data, &tr2); err != nil {
+			t.Fatalf("second unmarshal: %v", err)
+		}
+		if tr.TxHash.Hex() != tr2.TxHash.Hex() {
+			t.Errorf("txHash mismatch after round-trip")
+		}
+	})
+
+	t.Run("call", func(t *testing.T) {
+		var tr TransactionTrace
+		if err := json.Unmarshal(rawCall["0x4870d2"][0], &tr); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		data, err := json.Marshal(&tr)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		var tr2 TransactionTrace
+		if err := json.Unmarshal(data, &tr2); err != nil {
+			t.Fatalf("second unmarshal: %v", err)
+		}
+		if tr.TxHash.Hex() != tr2.TxHash.Hex() {
+			t.Errorf("txHash mismatch after round-trip")
+		}
+	})
+
+	t.Run("prestate", func(t *testing.T) {
+		var tr TransactionTrace
+		if err := json.Unmarshal(rawPrestate["0x4870d2"][0], &tr); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		data, err := json.Marshal(&tr)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		var tr2 TransactionTrace
+		if err := json.Unmarshal(data, &tr2); err != nil {
+			t.Fatalf("second unmarshal: %v", err)
+		}
+		if tr.TxHash.Hex() != tr2.TxHash.Hex() {
+			t.Errorf("txHash mismatch after round-trip")
+		}
+	})
+}
+
+func loadJson(t *testing.T, name string) map[string]json.RawMessage {
+	t.Helper()
+	rel := filepath.Join("blobs", name)
+	data, err := os.ReadFile(rel)
+	if err != nil {
+		t.Fatalf("read %s: %v", rel, err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal %s: %v", name, err)
+	}
+	return raw
+}
+
+func loadJsonN(t *testing.T, name string) map[string][]json.RawMessage {
+	t.Helper()
+	rel := filepath.Join("blobs", name)
+	data, err := os.ReadFile(rel)
+	if err != nil {
+		t.Fatalf("read %s: %v", rel, err)
+	}
+	var raw map[string][]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal %s: %v", name, err)
+	}
+	return raw
 }
