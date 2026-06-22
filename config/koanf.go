@@ -91,6 +91,10 @@ func defaultConfig() *koanf.Koanf {
 
 	k.Load(
 		structs.Provider(RootConfig{
+			Database: &DatabaseConfig{
+				Uri:  "mongodb://localhost:27017",
+				Name: "evm_rpc_agent",
+			},
 			Log: &LogConfig{
 				Level:  "info",
 				Format: "console",
