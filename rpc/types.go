@@ -41,14 +41,14 @@ type Block struct {
 	GasLimit         Integer         `json:"gasLimit"`
 	Extra            Bytes           `json:"extraData"`
 	MixDigest        Bytes32         `json:"mixHash"`
-	Bloom            Bytes           `json:"logsBloom"`
+	LogsBloom        Bytes           `json:"logsBloom"`
 	ParentHash       Bytes32         `json:"parentHash"`
 	UncleHash        Bytes32         `json:"sha3Uncles"`
 	TransactionsRoot Bytes32         `json:"transactionsRoot"`
 	ReceiptsRoot     Bytes32         `json:"receiptsRoot"`
 	StateRoot        Bytes32         `json:"stateRoot"`
-	RawTransactions  json.RawMessage `json:"transactions"`
-	RawUncles        json.RawMessage `json:"uncles"`
+	RawTransactions  json.RawMessage `json:"transactions,omitempty"`
+	RawUncles        json.RawMessage `json:"uncles,omitempty"`
 }
 
 // Return transaction hashes from the block (when txDetails=false).
@@ -123,22 +123,22 @@ type PrestateAccount struct {
 
 // Transaction represents an Ethereum transaction.
 type Transaction struct {
-	Hash        Bytes32  `json:"hash"`
-	BlockNumber *Integer `json:"blockNumber"`
-	BlockHash   *Bytes32 `json:"blockHash"`
-	BlockTime   Integer  `json:"blockTimestamp"`
-	Nonce       Integer  `json:"nonce"`
-	Index       *Integer `json:"transactionIndex"`
-	From        Address  `json:"from"`
-	To          *Address `json:"to"`
-	Value       Integer  `json:"value"`
-	Gas         Integer  `json:"gas"`
-	GasPrice    Integer  `json:"gasPrice"`
-	Type        Integer  `json:"type"`
-	Input       Bytes    `json:"input"`
-	V           Integer  `json:"v"`
-	R           Bytes    `json:"r"`
-	S           Bytes    `json:"s"`
+	Hash        Bytes32 `json:"hash"`
+	BlockNumber Integer `json:"blockNumber"`
+	BlockHash   Bytes32 `json:"blockHash"`
+	BlockTime   Integer `json:"blockTimestamp"`
+	Nonce       Integer `json:"nonce"`
+	Index       Integer `json:"transactionIndex"`
+	From        Address `json:"from"`
+	To          Address `json:"to"`
+	Value       Integer `json:"value"`
+	Gas         Integer `json:"gas"`
+	GasPrice    Integer `json:"gasPrice"`
+	Type        Integer `json:"type"`
+	Input       Bytes   `json:"input"`
+	V           Integer `json:"v"`
+	R           Bytes   `json:"r"`
+	S           Bytes   `json:"s"`
 }
 
 // TransactionTrace represents a single transaction trace.

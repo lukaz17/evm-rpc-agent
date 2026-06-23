@@ -193,7 +193,7 @@ func TestBlock_TransactionsFull(t *testing.T) {
 	if first.From.Hex() != "0xfbe26da0e985087d28228defbdaa394713b0865f" {
 		t.Errorf("first tx from mismatch: %s", first.From.Hex())
 	}
-	if first.To == nil || first.To.Hex() != "0xfb110ca742c3e47ab3babf4d48624c33891f35c6" {
+	if first.To.Hex() != "0xfb110ca742c3e47ab3babf4d48624c33891f35c6" {
 		t.Errorf("first tx to mismatch: %v", first.To)
 	}
 	if first.Value.Int().Cmp(big.NewInt(0x1062fab684fee0)) != 0 {
@@ -249,19 +249,19 @@ func TestTransaction_UnmarshalJSON(t *testing.T) {
 	if tx.Hash.Hex() != "0xc2c239e7c20fd3b5dccfc42e91bd4ae4a68727cfe184af3ea1ad7824cc13a686" {
 		t.Errorf("hash mismatch: %s", tx.Hash.Hex())
 	}
-	if tx.BlockNumber == nil || tx.BlockNumber.Uint64() != 0x1a33b7 {
+	if tx.BlockNumber.Uint64() != 0x1a33b7 {
 		t.Errorf("blockNumber = %v, want 0x1a33b7", tx.BlockNumber)
 	}
-	if tx.BlockHash == nil || tx.BlockHash.Hex() != "0x463b405b6b89683dd05956aaed190b3ab63c2d0efdbf1a99c5cd9f5aaeab11fc" {
+	if tx.BlockHash.Hex() != "0x463b405b6b89683dd05956aaed190b3ab63c2d0efdbf1a99c5cd9f5aaeab11fc" {
 		t.Errorf("blockHash mismatch: %v", tx.BlockHash)
 	}
-	if tx.Index == nil || tx.Index.Uint64() != 0 {
+	if tx.Index.Uint64() != 0 {
 		t.Errorf("index = %v, want 0", tx.Index)
 	}
 	if tx.From.Hex() != "0xfbe26da0e985087d28228defbdaa394713b0865f" {
 		t.Errorf("from mismatch: %s", tx.From.Hex())
 	}
-	if tx.To == nil || tx.To.Hex() != "0xfb110ca742c3e47ab3babf4d48624c33891f35c6" {
+	if tx.To.Hex() != "0xfb110ca742c3e47ab3babf4d48624c33891f35c6" {
 		t.Errorf("to mismatch: %v", tx.To)
 	}
 	if tx.Gas.Uint64() != 0x5208 {
@@ -309,7 +309,7 @@ func TestTransaction_UnmarshalJSON_WithInput(t *testing.T) {
 	if tx.Gas.Uint64() != 0x3d090 {
 		t.Errorf("gas = 0x%x, want 0x3d090", tx.Gas.Uint64())
 	}
-	if tx.Index == nil || tx.Index.Uint64() != 8 {
+	if tx.Index.Uint64() != 8 {
 		t.Errorf("index = %v, want 8", tx.Index)
 	}
 	if tx.V.Int().Cmp(big.NewInt(0x1b)) != 0 {
@@ -414,7 +414,7 @@ func TestTransaction_RoundTrip(t *testing.T) {
 	if tx1.From.Hex() != tx2.From.Hex() {
 		t.Errorf("from mismatch after round-trip")
 	}
-	if (tx1.To == nil) != (tx2.To == nil) || (tx1.To != nil && tx1.To.Hex() != tx2.To.Hex()) {
+	if tx1.To.Hex() != tx2.To.Hex() {
 		t.Errorf("to mismatch after round-trip")
 	}
 	if tx1.Value.Int().Cmp(tx2.Value.Int()) != 0 {

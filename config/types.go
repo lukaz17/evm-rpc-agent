@@ -21,9 +21,16 @@ type RootConfig struct {
 	ConfigDir  string
 	ConfigFile string
 	IsPortable bool
-	Log        *LogConfig    `koanf:"log"`
-	RPC        *RPCConfig    `koanf:"rpc"`
-	Server     *ServerConfig `koanf:"server"`
+	Database   *DatabaseConfig `koanf:"database"`
+	Log        *LogConfig      `koanf:"log"`
+	RPC        *RPCConfig      `koanf:"rpc"`
+	Server     *ServerConfig   `koanf:"server"`
+}
+
+// DatabaseConfig contains configurations for MongoDB connection.
+type DatabaseConfig struct {
+	Uri  string `koanf:"uri"`
+	Name string `koanf:"name"`
 }
 
 // LogConfig contains configurations for logging behavior.
