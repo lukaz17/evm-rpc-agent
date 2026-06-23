@@ -29,7 +29,8 @@ import (
 const (
 	DefaultTimeout = 10 * time.Second
 
-	BlockCollection = "blocks"
+	BlockCollection      = "blocks"
+	CallTracesCollection = "call_traces"
 )
 
 // DbContext holds the handles that access MongoDB.
