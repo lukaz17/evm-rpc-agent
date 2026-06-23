@@ -23,6 +23,7 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/rs/zerolog"
+	"github.com/tforce-io/tf-golib/diag"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -88,3 +89,50 @@ func initLogFile(useFS bool, workingDir string) *lumberjack.Logger {
 		LocalTime:  true,
 	}
 }
+
+// ZerologAdapter enables Zerolog output for diag.Logger.
+type ZerologAdapter struct {
+	zerolog.Logger
+}
+
+func (a ZerologAdapter) Error(err error, v ...interface{}) {
+	a.Logger.Error().Err(err).Msgf("%v", v...)
+}
+
+func (a ZerologAdapter) Errorf(err error, format string, v ...interface{}) {
+	a.Logger.Error().Err(err).Msgf(format, v...)
+}
+
+func (a ZerologAdapter) Warn(v ...interface{}) {
+	a.Logger.Warn().Msgf("%v", v...)
+}
+
+func (a ZerologAdapter) Warnf(format string, v ...interface{}) {
+	a.Logger.Warn().Msgf(format, v...)
+}
+
+func (a ZerologAdapter) Info(v ...interface{}) {
+	a.Logger.Info().Msgf("%v", v...)
+}
+
+func (a ZerologAdapter) Infof(format string, v ...interface{}) {
+	a.Logger.Info().Msgf(format, v...)
+}
+
+func (a ZerologAdapter) Debug(v ...interface{}) {
+	a.Logger.Debug().Msgf("%v", v...)
+}
+
+func (a ZerologAdapter) Debugf(format string, v ...interface{}) {
+	a.Logger.Debug().Msgf(format, v...)
+}
+
+func (a ZerologAdapter) Trace(v ...interface{}) {
+	a.Logger.Trace().Msgf("%v", v...)
+}
+
+func (a ZerologAdapter) Tracef(format string, v ...interface{}) {
+	a.Logger.Trace().Msgf(format, v...)
+}
+
+var _ diag.Logger = ZerologAdapter{}

@@ -95,6 +95,10 @@ func defaultConfig() *koanf.Koanf {
 				Uri:  "mongodb://localhost:27017",
 				Name: "evm_rpc_agent",
 			},
+			Http: &HttpConfig{
+				Host: "127.0.0.1",
+				Port: 8080,
+			},
 			Log: &LogConfig{
 				Level:  "info",
 				Format: "console",
@@ -102,12 +106,12 @@ func defaultConfig() *koanf.Koanf {
 				LogDir: "",
 			},
 			RPC: &RPCConfig{
-				URL:     "http://localhost:8545",
-				ChainID: 1,
+				URL: "http://localhost:8545",
 			},
-			Server: &ServerConfig{
-				Host: "127.0.0.1",
-				Port: 8080,
+			Service: &ServiceConfig{
+				MaxRpcRrtryCount:          5,
+				HistoricalApisWorkerCount: 4,
+				StandardApisWorkerCount:   16,
 			},
 		}, "koanf"),
 		nil,

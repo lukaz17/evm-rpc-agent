@@ -24,13 +24,20 @@ type RootConfig struct {
 	Database   *DatabaseConfig `koanf:"database"`
 	Log        *LogConfig      `koanf:"log"`
 	RPC        *RPCConfig      `koanf:"rpc"`
-	Server     *ServerConfig   `koanf:"server"`
+	Http       *HttpConfig     `koanf:"http"`
+	Service    *ServiceConfig  `koanf:"service"`
 }
 
 // DatabaseConfig contains configurations for MongoDB connection.
 type DatabaseConfig struct {
 	Uri  string `koanf:"uri"`
 	Name string `koanf:"name"`
+}
+
+// HttpConfig contains configurations for the HTTP server.
+type HttpConfig struct {
+	Host string `koanf:"host"`
+	Port int    `koanf:"port"`
 }
 
 // LogConfig contains configurations for logging behavior.
@@ -43,12 +50,12 @@ type LogConfig struct {
 
 // RPCConfig contains configurations for EVM RPC connections.
 type RPCConfig struct {
-	URL     string `koanf:"url"`
-	ChainID int64  `koanf:"chain_id"`
+	URL string `koanf:"url"`
 }
 
-// ServerConfig contains configurations for the HTTP server.
-type ServerConfig struct {
-	Host string `koanf:"host"`
-	Port int    `koanf:"port"`
+// ServiceConfig contains configurations for background processor.
+type ServiceConfig struct {
+	MaxRpcRrtryCount          int `koanf:"max_rpc_retry_count"`
+	HistoricalApisWorkerCount int `koanf:"historical_apis_worker_count"`
+	StandardApisWorkerCount   int `koanf:"standard_apis_worker_count"`
 }
