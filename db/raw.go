@@ -22,6 +22,15 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+// RawBlockArray stores raw RPC result of a block in MongoDB.
+type RawBlockArray struct {
+	ID        string    `bson:"_id"`
+	Number    uint64    `bson:"number"`
+	Data      bson.A    `bson:"data"`
+	CreatedAt time.Time `bson:"created_at"`
+	UpdatedAt time.Time `bson:"updated_at"`
+}
+
 // RawBlockData stores raw RPC result of a block in MongoDB.
 type RawBlockData struct {
 	ID        string    `bson:"_id"`

@@ -32,6 +32,15 @@ func BsonToJson(doc bson.D) (json.RawMessage, error) {
 	return json.RawMessage(data), nil
 }
 
+// Convert bson.A to json.RawMessage.
+func BsonArrToJson(arr bson.A) (json.RawMessage, error) {
+	data, err := bson.MarshalExtJSON(arr, true, true)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(data), nil
+}
+
 // Convert json.RawMessage to bson.D.
 func JsonToBson(rawJson json.RawMessage) (bson.D, error) {
 	var doc bson.D
@@ -39,6 +48,15 @@ func JsonToBson(rawJson json.RawMessage) (bson.D, error) {
 		return nil, err
 	}
 	return doc, nil
+}
+
+// Convert json.RawMessage to bson.A.
+func JsonToBsonArr(rawJson json.RawMessage) (bson.A, error) {
+	var arr bson.A
+	if err := bson.UnmarshalExtJSON(rawJson, true, &arr); err != nil {
+		return nil, err
+	}
+	return arr, nil
 }
 
 func getNumberFromDoc(doc bson.D, key string) (uint64, error) {

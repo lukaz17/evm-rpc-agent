@@ -20,8 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -45,9 +43,11 @@ func TestNewBlockFromRPC_Nil(t *testing.T) {
 }
 
 func TestNewBlockFromRPC_EmptyTX(t *testing.T) {
-	rpcBlock := rpcBlockFromRaw(t, "0x42957")
-
-	block, err := NewBlockFromRPC(rpcBlock)
+	var rpcBlock rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x42957"], &rpcBlock); err != nil {
+		t.Fatalf("unmarshal 0x42957: %v", err)
+	}
+	block, err := NewBlockFromRPC(&rpcBlock)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -85,9 +85,11 @@ func TestNewBlockFromRPC_EmptyTX(t *testing.T) {
 }
 
 func TestNewBlockFromRPC_WithTX(t *testing.T) {
-	rpcBlock := rpcBlockFromRaw(t, "0x1a33b7")
-
-	block, err := NewBlockFromRPC(rpcBlock)
+	var rpcBlock rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x1a33b7"], &rpcBlock); err != nil {
+		t.Fatalf("unmarshal 0x1a33b7: %v", err)
+	}
+	block, err := NewBlockFromRPC(&rpcBlock)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -180,8 +182,11 @@ func TestInsertAndGetBlock(t *testing.T) {
 	dbc := newTestDbContext(t)
 	ctx := context.Background()
 
-	rpcBlock := rpcBlockFromRaw(t, "0x42957")
-	block, err := NewBlockFromRPC(rpcBlock)
+	var rpcBlock rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x42957"], &rpcBlock); err != nil {
+		t.Fatalf("unmarshal 0x42957: %v", err)
+	}
+	block, err := NewBlockFromRPC(&rpcBlock)
 	if err != nil {
 		t.Fatalf("NewBlockFromRPC: %v", err)
 	}
@@ -225,8 +230,11 @@ func TestGetRawBlock(t *testing.T) {
 	dbc := newTestDbContext(t)
 	ctx := context.Background()
 
-	rpcBlock := rpcBlockFromRaw(t, "0x42957")
-	block, err := NewBlockFromRPC(rpcBlock)
+	var rpcBlock rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x42957"], &rpcBlock); err != nil {
+		t.Fatalf("unmarshal 0x42957: %v", err)
+	}
+	block, err := NewBlockFromRPC(&rpcBlock)
 	if err != nil {
 		t.Fatalf("NewBlockFromRPC: %v", err)
 	}
@@ -265,8 +273,11 @@ func TestInsertAndGetBlock_WithTransactions(t *testing.T) {
 	dbc := newTestDbContext(t)
 	ctx := context.Background()
 
-	rpcBlock := rpcBlockFromRaw(t, "0x1a33b7")
-	block, err := NewBlockFromRPC(rpcBlock)
+	var rpcBlock rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x1a33b7"], &rpcBlock); err != nil {
+		t.Fatalf("unmarshal 0x1a33b7: %v", err)
+	}
+	block, err := NewBlockFromRPC(&rpcBlock)
 	if err != nil {
 		t.Fatalf("NewBlockFromRPC: %v", err)
 	}
@@ -294,8 +305,11 @@ func TestInsertAndGetBlock_BlockNumberAsID(t *testing.T) {
 	dbc := newTestDbContext(t)
 	ctx := context.Background()
 
-	rpcBlock := rpcBlockFromRaw(t, "0x42957")
-	block, err := NewBlockFromRPC(rpcBlock)
+	var rpcBlock rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x42957"], &rpcBlock); err != nil {
+		t.Fatalf("unmarshal 0x42957: %v", err)
+	}
+	block, err := NewBlockFromRPC(&rpcBlock)
 	if err != nil {
 		t.Fatalf("NewBlockFromRPC: %v", err)
 	}
@@ -326,8 +340,11 @@ func TestInsertBlock_Duplicate(t *testing.T) {
 	dbc := newTestDbContext(t)
 	ctx := context.Background()
 
-	rpcBlock := rpcBlockFromRaw(t, "0x42957")
-	block, err := NewBlockFromRPC(rpcBlock)
+	var raw rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x42957"], &raw); err != nil {
+		t.Fatalf("unmarshal 0x42957: %v", err)
+	}
+	block, err := NewBlockFromRPC(&raw)
 	if err != nil {
 		t.Fatalf("NewBlockFromRPC: %v", err)
 	}
@@ -336,7 +353,7 @@ func TestInsertBlock_Duplicate(t *testing.T) {
 		t.Fatalf("first InsertBlock: %v", err)
 	}
 
-	block2, _ := NewBlockFromRPC(rpcBlock)
+	block2, _ := NewBlockFromRPC(&raw)
 	err = dbc.InsertBlock(ctx, block2)
 	if err == nil {
 		t.Error("expected duplicate key error")
@@ -347,8 +364,8 @@ func TestInsertRawBlock(t *testing.T) {
 	dbc := newTestDbContext(t)
 	ctx := context.Background()
 
-	rawBlocks := loadRawBlocks(t)
-	raw := rawBlocks["0x42957"]
+	raws := loadJson(t, "blocks.json")
+	raw := raws["0x42957"]
 
 	if err := dbc.InsertRawBlock(ctx, raw); err != nil {
 		t.Fatalf("InsertRawBlock: %v", err)
@@ -385,8 +402,8 @@ func TestInsertRawBlock_Duplicate(t *testing.T) {
 	dbc := newTestDbContext(t)
 	ctx := context.Background()
 
-	rawBlocks := loadRawBlocks(t)
-	raw := rawBlocks["0x42957"]
+	raws := loadJson(t, "blocks.json")
+	raw := raws["0x42957"]
 
 	if err := dbc.InsertRawBlock(ctx, raw); err != nil {
 		t.Fatalf("first InsertRawBlock: %v", err)
@@ -402,8 +419,11 @@ func TestUpsertBlock(t *testing.T) {
 	dbc := newTestDbContext(t)
 	ctx := context.Background()
 
-	rpcBlock := rpcBlockFromRaw(t, "0x42957")
-	block, err := NewBlockFromRPC(rpcBlock)
+	var rpcBlock rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x42957"], &rpcBlock); err != nil {
+		t.Fatalf("unmarshal 0x42957: %v", err)
+	}
+	block, err := NewBlockFromRPC(&rpcBlock)
 	if err != nil {
 		t.Fatalf("NewBlockFromRPC: %v", err)
 	}
@@ -439,8 +459,8 @@ func TestUpsertRawBlock(t *testing.T) {
 	dbc := newTestDbContext(t)
 	ctx := context.Background()
 
-	rawBlocks := loadRawBlocks(t)
-	raw1 := rawBlocks["0x42957"]
+	raws := loadJson(t, "blocks.json")
+	raw1 := raws["0x42957"]
 
 	if err := dbc.UpsertRawBlock(ctx, raw1); err != nil {
 		t.Fatalf("first UpsertRawBlock: %v", err)
@@ -451,7 +471,7 @@ func TestUpsertRawBlock(t *testing.T) {
 		t.Errorf("count after first upsert = %d, want 1", count)
 	}
 
-	raw2 := rawBlocks["0x42957"]
+	raw2 := raws["0x42957"]
 	time.Sleep(10 * time.Millisecond)
 	if err := dbc.UpsertRawBlock(ctx, raw2); err != nil {
 		t.Fatalf("second UpsertRawBlock: %v", err)
@@ -467,8 +487,11 @@ func TestDeleteBlock(t *testing.T) {
 	dbc := newTestDbContext(t)
 	ctx := context.Background()
 
-	rpcBlock := rpcBlockFromRaw(t, "0x42957")
-	block, err := NewBlockFromRPC(rpcBlock)
+	var rpcBlock rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x42957"], &rpcBlock); err != nil {
+		t.Fatalf("unmarshal 0x42957: %v", err)
+	}
+	block, err := NewBlockFromRPC(&rpcBlock)
 	if err != nil {
 		t.Fatalf("NewBlockFromRPC: %v", err)
 	}
@@ -522,14 +545,20 @@ func TestCountBlocks(t *testing.T) {
 		t.Errorf("count = %d, want 0", count)
 	}
 
-	rpcBlock1 := rpcBlockFromRaw(t, "0x42957")
-	block1, _ := NewBlockFromRPC(rpcBlock1)
+	var raw1 rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x42957"], &raw1); err != nil {
+		t.Fatalf("unmarshal 0x42957: %v", err)
+	}
+	block1, _ := NewBlockFromRPC(&raw1)
 	if err := dbc.InsertBlock(ctx, block1); err != nil {
 		t.Fatalf("InsertBlock 1: %v", err)
 	}
 
-	rpcBlock2 := rpcBlockFromRaw(t, "0x1a33b7")
-	block2, _ := NewBlockFromRPC(rpcBlock2)
+	var raw2 rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x1a33b7"], &raw2); err != nil {
+		t.Fatalf("unmarshal 0x1a33b7: %v", err)
+	}
+	block2, _ := NewBlockFromRPC(&raw2)
 	if err := dbc.InsertBlock(ctx, block2); err != nil {
 		t.Fatalf("InsertBlock 2: %v", err)
 	}
@@ -574,25 +603,3 @@ func newTestDbContext(t *testing.T) *DbContext {
 	return dbc
 }
 
-func loadRawBlocks(t *testing.T) map[string]json.RawMessage {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "rpc", "blobs", "blocks.json"))
-	if err != nil {
-		t.Fatalf("read blocks.json: %v", err)
-	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		t.Fatalf("unmarshal blocks.json: %v", err)
-	}
-	return raw
-}
-
-func rpcBlockFromRaw(t *testing.T, key string) *rpc.Block {
-	t.Helper()
-	rawBlocks := loadRawBlocks(t)
-	var block rpc.Block
-	if err := json.Unmarshal(rawBlocks[key], &block); err != nil {
-		t.Fatalf("unmarshal %s: %v", key, err)
-	}
-	return &block
-}
