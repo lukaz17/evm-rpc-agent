@@ -454,6 +454,309 @@ func TestInsertRawBlock_Duplicate(t *testing.T) {
 	}
 }
 
+func TestInsertBlocks_Success(t *testing.T) {
+	dbc := newTestDbContext(t)
+	ctx := context.Background()
+
+	var rpcBlock1 rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x42957"], &rpcBlock1); err != nil {
+		t.Fatalf("unmarshal 0x42957: %v", err)
+	}
+	block1, _ := NewBlockFromRPC(&rpcBlock1)
+
+	var rpcBlock2 rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x1a33b7"], &rpcBlock2); err != nil {
+		t.Fatalf("unmarshal 0x1a33b7: %v", err)
+	}
+	block2, _ := NewBlockFromRPC(&rpcBlock2)
+
+	if err := dbc.InsertBlocks(ctx, []*Block{block1, block2}); err != nil {
+		t.Fatalf("InsertBlocks: %v", err)
+	}
+
+	count, err := dbc.CountBlocks(ctx)
+	if err != nil {
+		t.Fatalf("CountBlocks: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("count = %d, want 2", count)
+	}
+
+	fetched1, err := dbc.GetBlock(ctx, 0x42957)
+	if err != nil || fetched1 == nil {
+		t.Fatalf("GetBlock 0x42957: err=%v, block=%v", err, fetched1)
+	}
+
+	fetched2, err := dbc.GetBlock(ctx, 0x1a33b7)
+	if err != nil || fetched2 == nil {
+		t.Fatalf("GetBlock 0x1a33b7: err=%v, block=%v", err, fetched2)
+	}
+}
+
+func TestInsertBlocks_Empty(t *testing.T) {
+	dbc := newTestDbContext(t)
+	ctx := context.Background()
+
+	err := dbc.InsertBlocks(ctx, nil)
+	if err != nil {
+		t.Errorf("expected no error for nil blocks, got %v", err)
+	}
+
+	err = dbc.InsertBlocks(ctx, []*Block{})
+	if err != nil {
+		t.Errorf("expected no error for empty blocks, got %v", err)
+	}
+}
+
+func TestInsertBlocks_RollbackOnDuplicate(t *testing.T) {
+	dbc := newTestDbContext(t)
+	ctx := context.Background()
+
+	// Pre-insert block A (0x42957).
+	var rpcBlockA rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x42957"], &rpcBlockA); err != nil {
+		t.Fatalf("unmarshal 0x42957: %v", err)
+	}
+	blockA, _ := NewBlockFromRPC(&rpcBlockA)
+	if err := dbc.InsertBlock(ctx, blockA); err != nil {
+		t.Fatalf("InsertBlock A: %v", err)
+	}
+
+	// Prepare block B (0x1a33b7) — new.
+	var rpcBlockB rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x1a33b7"], &rpcBlockB); err != nil {
+		t.Fatalf("unmarshal 0x1a33b7: %v", err)
+	}
+	blockB, _ := NewBlockFromRPC(&rpcBlockB)
+
+	// Insert [B, A] — B succeeds, A fails on duplicate → B must be rolled back.
+	err := dbc.InsertBlocks(ctx, []*Block{blockB, blockA})
+	if err == nil {
+		t.Fatal("expected error from duplicate key")
+	}
+
+	count, err := dbc.CountBlocks(ctx)
+	if err != nil {
+		t.Fatalf("CountBlocks: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("count = %d, want 1 (B should have been rolled back)", count)
+	}
+
+	fetchedA, err := dbc.GetBlock(ctx, 0x42957)
+	if err != nil || fetchedA == nil {
+		t.Fatalf("GetBlock A: expected block to exist, err=%v", err)
+	}
+
+	fetchedB, err := dbc.GetBlock(ctx, 0x1a33b7)
+	if err != nil {
+		t.Fatalf("GetBlock B: unexpected error %v", err)
+	}
+	if fetchedB != nil {
+		t.Error("block B should have been rolled back")
+	}
+}
+
+func TestInsertBlocks_RollbackMultipleInserted(t *testing.T) {
+	dbc := newTestDbContext(t)
+	ctx := context.Background()
+
+	// Pre-insert block A (0x42957).
+	var rpcBlockA rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x42957"], &rpcBlockA); err != nil {
+		t.Fatalf("unmarshal 0x42957: %v", err)
+	}
+	blockA, _ := NewBlockFromRPC(&rpcBlockA)
+	if err := dbc.InsertBlock(ctx, blockA); err != nil {
+		t.Fatalf("InsertBlock A: %v", err)
+	}
+
+	// Prepare blocks B (0x1a33b7) and C — both new.
+	var rpcBlockB rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x1a33b7"], &rpcBlockB); err != nil {
+		t.Fatalf("unmarshal 0x1a33b7: %v", err)
+	}
+	blockB, _ := NewBlockFromRPC(&rpcBlockB)
+
+	// Craft a unique block C with a number that doesn't collide.
+	var rpcBlockC rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x1a33b7"], &rpcBlockC); err != nil {
+		t.Fatalf("unmarshal 0x1a33b7: %v", err)
+	}
+	blockC, _ := NewBlockFromRPC(&rpcBlockC)
+	blockC.Number = 999998
+	blockC.ID = "999998"
+
+	// Insert [B, C, A] — B and C succeed, A fails → both B and C must be rolled back.
+	err := dbc.InsertBlocks(ctx, []*Block{blockB, blockC, blockA})
+	if err == nil {
+		t.Fatal("expected error from duplicate key")
+	}
+
+	count, err := dbc.CountBlocks(ctx)
+	if err != nil {
+		t.Fatalf("CountBlocks: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("count = %d, want 1 (B and C should have been rolled back)", count)
+	}
+
+	fetchedC, err := dbc.GetBlock(ctx, 999998)
+	if err != nil {
+		t.Fatalf("GetBlock C: unexpected error %v", err)
+	}
+	if fetchedC != nil {
+		t.Error("block C should have been rolled back")
+	}
+
+	fetchedB, err := dbc.GetBlock(ctx, 0x1a33b7)
+	if err != nil {
+		t.Fatalf("GetBlock B: unexpected error %v", err)
+	}
+	if fetchedB != nil {
+		t.Error("block B should have been rolled back")
+	}
+}
+
+func TestInsertRawBlocks_Success(t *testing.T) {
+	dbc := newTestDbContext(t)
+	ctx := context.Background()
+
+	raws := loadJson(t, "blocks.json")
+	raw1 := raws["0x42957"]
+	raw2 := raws["0x1a33b7"]
+
+	if err := dbc.InsertRawBlocks(ctx, []json.RawMessage{raw1, raw2}); err != nil {
+		t.Fatalf("InsertRawBlocks: %v", err)
+	}
+
+	count, err := dbc.CountBlocks(ctx)
+	if err != nil {
+		t.Fatalf("CountBlocks: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("count = %d, want 2", count)
+	}
+
+	fetched1, err := dbc.GetBlock(ctx, 0x42957)
+	if err != nil || fetched1 == nil {
+		t.Fatalf("GetBlock 0x42957: err=%v, block=%v", err, fetched1)
+	}
+
+	fetched2, err := dbc.GetBlock(ctx, 0x1a33b7)
+	if err != nil || fetched2 == nil {
+		t.Fatalf("GetBlock 0x1a33b7: err=%v, block=%v", err, fetched2)
+	}
+}
+
+func TestInsertRawBlocks_Empty(t *testing.T) {
+	dbc := newTestDbContext(t)
+	ctx := context.Background()
+
+	err := dbc.InsertRawBlocks(ctx, nil)
+	if err != nil {
+		t.Errorf("expected no error for nil raws, got %v", err)
+	}
+
+	err = dbc.InsertRawBlocks(ctx, []json.RawMessage{})
+	if err != nil {
+		t.Errorf("expected no error for empty raws, got %v", err)
+	}
+}
+
+func TestInsertRawBlocks_RollbackOnDuplicate(t *testing.T) {
+	dbc := newTestDbContext(t)
+	ctx := context.Background()
+
+	raws := loadJson(t, "blocks.json")
+	rawA := raws["0x42957"]
+	rawB := raws["0x1a33b7"]
+
+	// Pre-insert block A.
+	if err := dbc.InsertRawBlock(ctx, rawA); err != nil {
+		t.Fatalf("InsertRawBlock A: %v", err)
+	}
+
+	// Insert [B, A] — B succeeds, A fails on duplicate → B must be rolled back.
+	err := dbc.InsertRawBlocks(ctx, []json.RawMessage{rawB, rawA})
+	if err == nil {
+		t.Fatal("expected error from duplicate key")
+	}
+
+	count, err := dbc.CountBlocks(ctx)
+	if err != nil {
+		t.Fatalf("CountBlocks: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("count = %d, want 1 (B should have been rolled back)", count)
+	}
+
+	fetchedA, err := dbc.GetBlock(ctx, 0x42957)
+	if err != nil || fetchedA == nil {
+		t.Fatalf("GetBlock A: expected block to exist, err=%v", err)
+	}
+
+	fetchedB, err := dbc.GetBlock(ctx, 0x1a33b7)
+	if err != nil {
+		t.Fatalf("GetBlock B: unexpected error %v", err)
+	}
+	if fetchedB != nil {
+		t.Error("block B should have been rolled back")
+	}
+}
+
+func TestInsertRawBlocks_RollbackMultipleInserted(t *testing.T) {
+	dbc := newTestDbContext(t)
+	ctx := context.Background()
+
+	raws := loadJson(t, "blocks.json")
+	rawA := raws["0x42957"]
+	rawB := raws["0x1a33b7"]
+
+	// Pre-insert block A.
+	if err := dbc.InsertRawBlock(ctx, rawA); err != nil {
+		t.Fatalf("InsertRawBlock A: %v", err)
+	}
+
+	// Craft a unique block C by modifying the number in raw JSON.
+	var blockC map[string]interface{}
+	if err := json.Unmarshal(rawB, &blockC); err != nil {
+		t.Fatalf("unmarshal for crafting C: %v", err)
+	}
+	blockC["number"] = "0xf4246" // 1000000 in hex
+	craftedRawC, _ := json.Marshal(blockC)
+
+	// Insert [B, C, A] — B and C succeed, A fails → both rolled back.
+	err := dbc.InsertRawBlocks(ctx, []json.RawMessage{rawB, craftedRawC, rawA})
+	if err == nil {
+		t.Fatal("expected error from duplicate key")
+	}
+
+	count, err := dbc.CountBlocks(ctx)
+	if err != nil {
+		t.Fatalf("CountBlocks: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("count = %d, want 1 (B and C should have been rolled back)", count)
+	}
+
+	fetchedC, err := dbc.GetBlock(ctx, 0xf4246)
+	if err != nil {
+		t.Fatalf("GetBlock C: unexpected error %v", err)
+	}
+	if fetchedC != nil {
+		t.Error("block C should have been rolled back")
+	}
+
+	fetchedB, err := dbc.GetBlock(ctx, 0x1a33b7)
+	if err != nil {
+		t.Fatalf("GetBlock B: unexpected error %v", err)
+	}
+	if fetchedB != nil {
+		t.Error("block B should have been rolled back")
+	}
+}
+
 func TestUpsertBlock(t *testing.T) {
 	dbc := newTestDbContext(t)
 	ctx := context.Background()
@@ -521,6 +824,134 @@ func TestUpsertRawBlock(t *testing.T) {
 	count, _ = dbc.CountBlocks(ctx)
 	if count != 1 {
 		t.Errorf("count after second upsert = %d, want 1 (upsert should not create duplicate)", count)
+	}
+}
+
+func TestUpsertBlocks_Success(t *testing.T) {
+	dbc := newTestDbContext(t)
+	ctx := context.Background()
+
+	var rpcBlock1 rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x42957"], &rpcBlock1); err != nil {
+		t.Fatalf("unmarshal 0x42957: %v", err)
+	}
+	block1, _ := NewBlockFromRPC(&rpcBlock1)
+
+	var rpcBlock2 rpc.Block
+	if err := json.Unmarshal(loadJson(t, "blocks.json")["0x1a33b7"], &rpcBlock2); err != nil {
+		t.Fatalf("unmarshal 0x1a33b7: %v", err)
+	}
+	block2, _ := NewBlockFromRPC(&rpcBlock2)
+
+	if err := dbc.UpsertBlocks(ctx, []*Block{block1, block2}); err != nil {
+		t.Fatalf("first UpsertBlocks: %v", err)
+	}
+
+	count, _ := dbc.CountBlocks(ctx)
+	if count != 2 {
+		t.Errorf("count after first upsert = %d, want 2", count)
+	}
+
+	modifiedHash1 := core.Bytes32{}
+	copy(modifiedHash1[:], []byte("modified1"))
+	block1.Data.Hash = modifiedHash1
+
+	modifiedHash2 := core.Bytes32{}
+	copy(modifiedHash2[:], []byte("modified2"))
+	block2.Data.Hash = modifiedHash2
+
+	time.Sleep(10 * time.Millisecond)
+	if err := dbc.UpsertBlocks(ctx, []*Block{block1, block2}); err != nil {
+		t.Fatalf("second UpsertBlocks: %v", err)
+	}
+
+	count, _ = dbc.CountBlocks(ctx)
+	if count != 2 {
+		t.Errorf("count after second upsert = %d, want 2 (upsert should not create duplicates)", count)
+	}
+
+	fetched1, err := dbc.GetBlock(ctx, 0x42957)
+	if err != nil || fetched1 == nil {
+		t.Fatalf("GetBlock 0x42957: err=%v", err)
+	}
+	if fetched1.Data.Hash.Hex() != modifiedHash1.Hex() {
+		t.Errorf("block1 Hash = %s, want %s", fetched1.Data.Hash, modifiedHash1)
+	}
+
+	fetched2, err := dbc.GetBlock(ctx, 0x1a33b7)
+	if err != nil || fetched2 == nil {
+		t.Fatalf("GetBlock 0x1a33b7: err=%v", err)
+	}
+	if fetched2.Data.Hash.Hex() != modifiedHash2.Hex() {
+		t.Errorf("block2 Hash = %s, want %s", fetched2.Data.Hash, modifiedHash2)
+	}
+}
+
+func TestUpsertBlocks_Empty(t *testing.T) {
+	dbc := newTestDbContext(t)
+	ctx := context.Background()
+
+	err := dbc.UpsertBlocks(ctx, nil)
+	if err != nil {
+		t.Errorf("expected no error for nil blocks, got %v", err)
+	}
+
+	err = dbc.UpsertBlocks(ctx, []*Block{})
+	if err != nil {
+		t.Errorf("expected no error for empty blocks, got %v", err)
+	}
+}
+
+func TestUpsertRawBlocks_Success(t *testing.T) {
+	dbc := newTestDbContext(t)
+	ctx := context.Background()
+
+	raws := loadJson(t, "blocks.json")
+	raw1 := raws["0x42957"]
+	raw2 := raws["0x1a33b7"]
+
+	if err := dbc.UpsertRawBlocks(ctx, []json.RawMessage{raw1, raw2}); err != nil {
+		t.Fatalf("first UpsertRawBlocks: %v", err)
+	}
+
+	count, _ := dbc.CountBlocks(ctx)
+	if count != 2 {
+		t.Errorf("count after first upsert = %d, want 2", count)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+	if err := dbc.UpsertRawBlocks(ctx, []json.RawMessage{raw1, raw2}); err != nil {
+		t.Fatalf("second UpsertRawBlocks: %v", err)
+	}
+
+	count, _ = dbc.CountBlocks(ctx)
+	if count != 2 {
+		t.Errorf("count after second upsert = %d, want 2 (upsert should not create duplicates)", count)
+	}
+
+	fetched1, err := dbc.GetBlock(ctx, 0x42957)
+	if err != nil || fetched1 == nil {
+		t.Fatalf("GetBlock 0x42957: err=%v", err)
+	}
+
+	fetched2, err := dbc.GetBlock(ctx, 0x1a33b7)
+	if err != nil || fetched2 == nil {
+		t.Fatalf("GetBlock 0x1a33b7: err=%v", err)
+	}
+}
+
+func TestUpsertRawBlocks_Empty(t *testing.T) {
+	dbc := newTestDbContext(t)
+	ctx := context.Background()
+
+	err := dbc.UpsertRawBlocks(ctx, nil)
+	if err != nil {
+		t.Errorf("expected no error for nil raws, got %v", err)
+	}
+
+	err = dbc.UpsertRawBlocks(ctx, []json.RawMessage{})
+	if err != nil {
+		t.Errorf("expected no error for empty raws, got %v", err)
 	}
 }
 

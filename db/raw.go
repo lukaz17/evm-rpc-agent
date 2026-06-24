@@ -17,10 +17,17 @@
 package db
 
 import (
+	"encoding/json"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
+
+// RawDataWithBlockNum is tuple of raw Json and its block number.
+type RawDataWithBlockNum struct {
+	BlockNumber uint64
+	Raw         json.RawMessage
+}
 
 // RawBlockArray stores raw RPC result of a block in MongoDB.
 type RawBlockArray struct {

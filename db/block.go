@@ -38,7 +38,7 @@ type Block struct {
 	UpdatedAt time.Time  `bson:"updated_at"`
 }
 
-// BlockData represents an Ethereum block stored in MongoDB.
+// BlockData represents an Ethereum block in MongoDB.
 type BlockData struct {
 	Number           core.Integer   `bson:"number"`
 	Time             core.Integer   `bson:"timestamp"`
@@ -62,7 +62,7 @@ type BlockData struct {
 	Uncles           []core.Bytes32 `bson:"uncles,omitempty"`
 }
 
-// Transaction represents an Ethereum transaction stored in MongoDB.
+// Transaction represents an Ethereum transaction in MongoDB.
 type Transaction struct {
 	Hash        core.Bytes32 `bson:"hash"`
 	BlockNumber core.Integer `bson:"blockNumber"`
@@ -82,7 +82,7 @@ type Transaction struct {
 	S           core.Bytes   `bson:"s"`
 }
 
-// Return a BSON Block from RPC Block.
+// Return BSON Block from RPC Block.
 func NewBlockFromRPC(rpcBlock *rpc.Block) (*Block, error) {
 	if rpcBlock == nil {
 		return nil, nil
@@ -141,7 +141,7 @@ func NewBlockFromRPC(rpcBlock *rpc.Block) (*Block, error) {
 	}, nil
 }
 
-// Return a BSON Transaction from RPC Transaction.
+// Return BSON Transaction from RPC Transaction.
 func NewTransactionFromRPC(tx rpc.Transaction) Transaction {
 	return Transaction{
 		Hash:        tx.Hash,
@@ -163,7 +163,7 @@ func NewTransactionFromRPC(tx rpc.Transaction) Transaction {
 	}
 }
 
-// Return a block by ID.
+// Get a block by ID.
 func (dbc *DbContext) GetBlock(ctx context.Context, number uint64) (*Block, error) {
 	coll := dbc.db.Collection(BlockCollection)
 	var block Block
@@ -177,7 +177,7 @@ func (dbc *DbContext) GetBlock(ctx context.Context, number uint64) (*Block, erro
 	return &block, nil
 }
 
-// Return a block by ID without ORM mapping.
+// Get a block by ID without ORM mapping.
 func (dbc *DbContext) GetRawBlock(ctx context.Context, number uint64) (*RawBlockData, error) {
 	coll := dbc.db.Collection(BlockCollection)
 	var data RawBlockData
@@ -196,9 +196,95 @@ func (dbc *DbContext) InsertBlock(ctx context.Context, block *Block) error {
 	return dbc.insertBlock(ctx, block, false)
 }
 
+// Insert multiple Block documents.
+func (dbc *DbContext) InsertBlocks(ctx context.Context, blocks []*Block) error {
+	if len(blocks) == 0 {
+		return nil
+	}
+
+	coll := dbc.db.Collection(BlockCollection)
+	utcNow := time.Now().UTC()
+
+	docs := make([]interface{}, len(blocks))
+	for i, block := range blocks {
+		block.ID = fmt.Sprintf("%d", block.Number)
+		if block.CreatedAt.IsZero() {
+			block.CreatedAt = utcNow
+		}
+		block.UpdatedAt = utcNow
+		docs[i] = block
+	}
+
+	result, err := coll.InsertMany(ctx, docs)
+	if err != nil {
+		if result != nil && len(result.InsertedIDs) > 0 {
+			insertedIDs := make([]string, 0, len(result.InsertedIDs))
+			for _, id := range result.InsertedIDs {
+				if s, ok := id.(string); ok {
+					insertedIDs = append(insertedIDs, s)
+				}
+			}
+			if len(insertedIDs) > 0 {
+				coll.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": insertedIDs}})
+			}
+		}
+		return fmt.Errorf("InsertBlocks: %w", err)
+	}
+	return nil
+}
+
 // Insert a new Block document without ORM mapping.
 func (dbc *DbContext) InsertRawBlock(ctx context.Context, raw json.RawMessage) error {
 	return dbc.insertRawBlock(ctx, raw, false)
+}
+
+// Insert multiple Block documents without ORM mapping.
+func (dbc *DbContext) InsertRawBlocks(ctx context.Context, raws []json.RawMessage) error {
+	if len(raws) == 0 {
+		return nil
+	}
+
+	coll := dbc.db.Collection(BlockCollection)
+	utcNow := time.Now().UTC()
+
+	docs := make([]*RawBlockData, len(raws))
+	for i, raw := range raws {
+		data, err := JsonToBson(raw)
+		if err != nil {
+			return fmt.Errorf("InsertRawBlocks: failed to convert JSON to BSON at index %d: %w", i, err)
+		}
+
+		blockNumber, err := getNumberFromDoc(data, "number")
+		if err != nil {
+			return fmt.Errorf("InsertRawBlocks: block number not found at index %d: %w", i, err)
+		}
+
+		id := fmt.Sprintf("%d", blockNumber)
+		docs[i] = &RawBlockData{
+			ID:        id,
+			Number:    blockNumber,
+			Data:      data,
+			CreatedAt: utcNow,
+			UpdatedAt: utcNow,
+		}
+	}
+
+	result, err := coll.InsertMany(ctx, docs)
+	if err != nil {
+		if result != nil && len(result.InsertedIDs) > 0 {
+			insertedIDs := make([]string, 0, len(result.InsertedIDs))
+			for _, id := range result.InsertedIDs {
+				if s, ok := id.(string); ok {
+					insertedIDs = append(insertedIDs, s)
+				}
+			}
+			if len(insertedIDs) > 0 {
+				coll.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": insertedIDs}})
+			}
+		}
+		return fmt.Errorf("InsertRawBlocks: %w", err)
+	}
+	return nil
 }
 
 // Insert or replace a Block document.
@@ -206,9 +292,100 @@ func (dbc *DbContext) UpsertBlock(ctx context.Context, block *Block) error {
 	return dbc.insertBlock(ctx, block, true)
 }
 
+// Insert or replace multiple Block documents.
+func (dbc *DbContext) UpsertBlocks(ctx context.Context, blocks []*Block) error {
+	if len(blocks) == 0 {
+		return nil
+	}
+
+	coll := dbc.db.Collection(BlockCollection)
+	utcNow := time.Now().UTC()
+
+	models := make([]mongo.WriteModel, len(blocks))
+	for i, block := range blocks {
+		block.ID = fmt.Sprintf("%d", block.Number)
+		if block.CreatedAt.IsZero() {
+			block.CreatedAt = utcNow
+		}
+		block.UpdatedAt = utcNow
+
+		filter := bson.M{"_id": block.ID}
+		models[i] = mongo.NewReplaceOneModel().SetFilter(filter).SetReplacement(block).SetUpsert(true)
+	}
+
+	result, err := coll.BulkWrite(ctx, models)
+	if err != nil {
+		if result != nil && len(result.UpsertedIDs) > 0 {
+			upsertedIDs := make([]string, 0, len(result.UpsertedIDs))
+			for _, id := range result.UpsertedIDs {
+				if s, ok := id.(string); ok {
+					upsertedIDs = append(upsertedIDs, s)
+				}
+			}
+			if len(upsertedIDs) > 0 {
+				coll.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": upsertedIDs}})
+			}
+		}
+		return fmt.Errorf("UpsertBlocks: %w", err)
+	}
+	return nil
+}
+
 // Insert or replace a Block document without ORM mapping.
 func (dbc *DbContext) UpsertRawBlock(ctx context.Context, raw json.RawMessage) error {
 	return dbc.insertRawBlock(ctx, raw, true)
+}
+
+// Insert or replace multiple Block documents without ORM mapping.
+func (dbc *DbContext) UpsertRawBlocks(ctx context.Context, raws []json.RawMessage) error {
+	if len(raws) == 0 {
+		return nil
+	}
+
+	coll := dbc.db.Collection(BlockCollection)
+	utcNow := time.Now().UTC()
+
+	models := make([]mongo.WriteModel, len(raws))
+	for i, raw := range raws {
+		data, err := JsonToBson(raw)
+		if err != nil {
+			return fmt.Errorf("UpsertRawBlocks: failed to convert JSON to BSON at index %d: %w", i, err)
+		}
+
+		blockNumber, err := getNumberFromDoc(data, "number")
+		if err != nil {
+			return fmt.Errorf("UpsertRawBlocks: block number not found at index %d: %w", i, err)
+		}
+
+		id := fmt.Sprintf("%d", blockNumber)
+		doc := &RawBlockData{
+			ID:        id,
+			Number:    blockNumber,
+			Data:      data,
+			CreatedAt: utcNow,
+			UpdatedAt: utcNow,
+		}
+
+		filter := bson.M{"_id": id}
+		models[i] = mongo.NewReplaceOneModel().SetFilter(filter).SetReplacement(doc).SetUpsert(true)
+	}
+
+	result, err := coll.BulkWrite(ctx, models)
+	if err != nil {
+		if result != nil && len(result.UpsertedIDs) > 0 {
+			upsertedIDs := make([]string, 0, len(result.UpsertedIDs))
+			for _, id := range result.UpsertedIDs {
+				if s, ok := id.(string); ok {
+					upsertedIDs = append(upsertedIDs, s)
+				}
+			}
+			if len(upsertedIDs) > 0 {
+				coll.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": upsertedIDs}})
+			}
+		}
+		return fmt.Errorf("UpsertRawBlocks: %w", err)
+	}
+	return nil
 }
 
 // Delete a block by ID

@@ -305,6 +305,204 @@ func TestInsertCallTrace_Duplicate(t *testing.T) {
 	}
 }
 
+func TestInsertCallTraces(t *testing.T) {
+	dbc := newTestCallTraceDbContext(t)
+	ctx := context.Background()
+
+	raw := loadJsonN(t, "blockCallTraces.json")
+	var traces []*BlockCallTrace
+
+	for _, key := range []string{"0x1a33b3", "0x1a33bb", "0x4870d2"} {
+		tracesJSON := raw[key]
+		var rpcTraces []rpc.TransactionTrace
+		for _, tj := range tracesJSON {
+			var tr rpc.TransactionTrace
+			if err := json.Unmarshal(tj, &tr); err != nil {
+				t.Fatalf("unmarshal trace: %v", err)
+			}
+			tr.Type = rpc.TraceTypeCall
+			rpcTraces = append(rpcTraces, tr)
+		}
+
+		var blockNum uint64
+		fmt.Sscanf(key, "0x%x", &blockNum)
+
+		trace, err := NewBlockCallTraceFromRPC(blockNum, rpcTraces)
+		if err != nil {
+			t.Fatalf("NewBlockCallTraceFromRPC(%s): %v", key, err)
+		}
+		if trace != nil {
+			traces = append(traces, trace)
+		}
+	}
+
+	if err := dbc.InsertCallTraces(ctx, traces); err != nil {
+		t.Fatalf("InsertCallTraces: %v", err)
+	}
+
+	count, _ := dbc.CountCallTraces(ctx)
+	if count != int64(len(traces)) {
+		t.Errorf("count = %d, want %d", count, len(traces))
+	}
+
+	for _, trace := range traces {
+		fetched, err := dbc.GetCallTrace(ctx, trace.Number)
+		if err != nil {
+			t.Fatalf("GetCallTrace(%d): %v", trace.Number, err)
+		}
+		if fetched == nil {
+			t.Errorf("expected non-nil trace for block %d", trace.Number)
+		}
+	}
+}
+
+func TestInsertCallTraces_Empty(t *testing.T) {
+	dbc := newTestCallTraceDbContext(t)
+	ctx := context.Background()
+
+	err := dbc.InsertCallTraces(ctx, nil)
+	if err != nil {
+		t.Errorf("expected no error for nil traces, got %v", err)
+	}
+
+	err = dbc.InsertCallTraces(ctx, []*BlockCallTrace{})
+	if err != nil {
+		t.Errorf("expected no error for empty traces, got %v", err)
+	}
+}
+
+func TestInsertCallTraces_RollbackOnDuplicate(t *testing.T) {
+	dbc := newTestCallTraceDbContext(t)
+	ctx := context.Background()
+
+	raw := loadJsonN(t, "blockCallTraces.json")
+
+	// Pre-insert trace A (0x4870d2).
+	tracesJSONA := raw["0x4870d2"]
+	var rpcTracesA []rpc.TransactionTrace
+	for _, tj := range tracesJSONA {
+		var tr rpc.TransactionTrace
+		if err := json.Unmarshal(tj, &tr); err != nil {
+			t.Fatalf("unmarshal trace A: %v", err)
+		}
+		tr.Type = rpc.TraceTypeCall
+		rpcTracesA = append(rpcTracesA, tr)
+	}
+	traceA, _ := NewBlockCallTraceFromRPC(0x4870d2, rpcTracesA)
+	if err := dbc.InsertCallTrace(ctx, traceA); err != nil {
+		t.Fatalf("InsertCallTrace A: %v", err)
+	}
+
+	// Prepare trace B (0x1a33bb) — new.
+	tracesJSONB := raw["0x1a33bb"]
+	var rpcTracesB []rpc.TransactionTrace
+	for _, tj := range tracesJSONB {
+		var tr rpc.TransactionTrace
+		if err := json.Unmarshal(tj, &tr); err != nil {
+			t.Fatalf("unmarshal trace B: %v", err)
+		}
+		tr.Type = rpc.TraceTypeCall
+		rpcTracesB = append(rpcTracesB, tr)
+	}
+	traceB, _ := NewBlockCallTraceFromRPC(0x1a33bb, rpcTracesB)
+
+	err := dbc.InsertCallTraces(ctx, []*BlockCallTrace{traceB, traceA})
+	if err == nil {
+		t.Fatal("expected error from duplicate key")
+	}
+
+	count, err := dbc.CountCallTraces(ctx)
+	if err != nil {
+		t.Fatalf("CountCallTraces: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("count = %d, want 1 (B should have been rolled back)", count)
+	}
+
+	fetchedA, err := dbc.GetCallTrace(ctx, 0x4870d2)
+	if err != nil || fetchedA == nil {
+		t.Fatalf("GetCallTrace A: expected trace to exist, err=%v", err)
+	}
+
+	fetchedB, err := dbc.GetCallTrace(ctx, 0x1a33bb)
+	if err != nil {
+		t.Fatalf("GetCallTrace B: unexpected error %v", err)
+	}
+	if fetchedB != nil {
+		t.Error("trace B should have been rolled back")
+	}
+}
+
+func TestInsertCallTraces_RollbackMultipleInserted(t *testing.T) {
+	dbc := newTestCallTraceDbContext(t)
+	ctx := context.Background()
+
+	raw := loadJsonN(t, "blockCallTraces.json")
+
+	// Pre-insert trace A (0x4870d2).
+	tracesJSONA := raw["0x4870d2"]
+	var rpcTracesA []rpc.TransactionTrace
+	for _, tj := range tracesJSONA {
+		var tr rpc.TransactionTrace
+		if err := json.Unmarshal(tj, &tr); err != nil {
+			t.Fatalf("unmarshal trace A: %v", err)
+		}
+		tr.Type = rpc.TraceTypeCall
+		rpcTracesA = append(rpcTracesA, tr)
+	}
+	traceA, _ := NewBlockCallTraceFromRPC(0x4870d2, rpcTracesA)
+	if err := dbc.InsertCallTrace(ctx, traceA); err != nil {
+		t.Fatalf("InsertCallTrace A: %v", err)
+	}
+
+	// Prepare trace B (0x1a33bb) — new.
+	tracesJSONB := raw["0x1a33bb"]
+	var rpcTracesB []rpc.TransactionTrace
+	for _, tj := range tracesJSONB {
+		var tr rpc.TransactionTrace
+		if err := json.Unmarshal(tj, &tr); err != nil {
+			t.Fatalf("unmarshal trace B: %v", err)
+		}
+		tr.Type = rpc.TraceTypeCall
+		rpcTracesB = append(rpcTracesB, tr)
+	}
+	traceB, _ := NewBlockCallTraceFromRPC(0x1a33bb, rpcTracesB)
+
+	// Craft a unique trace C with number 999998.
+	traceC, _ := NewBlockCallTraceFromRPC(999998, rpcTracesB)
+	traceC.Number = 999998
+	traceC.ID = "999998"
+
+	err := dbc.InsertCallTraces(ctx, []*BlockCallTrace{traceB, traceC, traceA})
+	if err == nil {
+		t.Fatal("expected error from duplicate key")
+	}
+
+	count, err := dbc.CountCallTraces(ctx)
+	if err != nil {
+		t.Fatalf("CountCallTraces: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("count = %d, want 1 (B and C should have been rolled back)", count)
+	}
+
+	fetchedC, err := dbc.GetCallTrace(ctx, 999998)
+	if err != nil {
+		t.Fatalf("GetCallTrace C: unexpected error %v", err)
+	}
+	if fetchedC != nil {
+		t.Error("trace C should have been rolled back")
+	}
+
+	fetchedB, err := dbc.GetCallTrace(ctx, 0x1a33bb)
+	if err != nil {
+		t.Fatalf("GetCallTrace B: unexpected error %v", err)
+	}
+	if fetchedB != nil {
+		t.Error("trace B should have been rolled back")
+	}
+}
+
 func TestInsertRawCallTrace(t *testing.T) {
 	dbc := newTestCallTraceDbContext(t)
 	ctx := context.Background()
@@ -312,7 +510,7 @@ func TestInsertRawCallTrace(t *testing.T) {
 	rawBlocks := loadJson(t, "blockCallTraces.json")
 	raw := rawBlocks["0x4870d2"]
 
-	if err := dbc.InsertRawCallTrace(ctx, 0x4870d2, raw); err != nil {
+	if err := dbc.InsertRawCallTrace(ctx, RawDataWithBlockNum{BlockNumber: 0x4870d2, Raw: raw}); err != nil {
 		t.Fatalf("InsertRawCallTrace: %v", err)
 	}
 
@@ -350,13 +548,153 @@ func TestInsertRawCallTrace_Duplicate(t *testing.T) {
 	rawBlocks := loadJson(t, "blockCallTraces.json")
 	raw := rawBlocks["0x4870d2"]
 
-	if err := dbc.InsertRawCallTrace(ctx, 0x4870d2, raw); err != nil {
+	if err := dbc.InsertRawCallTrace(ctx, RawDataWithBlockNum{BlockNumber: 0x4870d2, Raw: raw}); err != nil {
 		t.Fatalf("first InsertRawCallTrace: %v", err)
 	}
 
-	err := dbc.InsertRawCallTrace(ctx, 0x4870d2, raw)
+	err := dbc.InsertRawCallTrace(ctx, RawDataWithBlockNum{BlockNumber: 0x4870d2, Raw: raw})
 	if err == nil {
 		t.Error("expected duplicate key error")
+	}
+}
+
+func TestInsertRawCallTraces(t *testing.T) {
+	dbc := newTestCallTraceDbContext(t)
+	ctx := context.Background()
+
+	rawBlocks := loadJson(t, "blockCallTraces.json")
+	keys := []string{"0x1a33b3", "0x1a33bb", "0x4870d2"}
+
+	inputs := make([]RawDataWithBlockNum, 0, len(keys))
+	for _, key := range keys {
+		var blockNum uint64
+		fmt.Sscanf(key, "0x%x", &blockNum)
+		inputs = append(inputs, RawDataWithBlockNum{
+			BlockNumber: blockNum,
+			Raw:         rawBlocks[key],
+		})
+	}
+
+	if err := dbc.InsertRawCallTraces(ctx, inputs); err != nil {
+		t.Fatalf("InsertRawCallTraces: %v", err)
+	}
+
+	count, _ := dbc.CountCallTraces(ctx)
+	if count != int64(len(inputs)) {
+		t.Errorf("count = %d, want %d", count, len(inputs))
+	}
+
+	for _, input := range inputs {
+		id := fmt.Sprintf("%d", input.BlockNumber)
+		coll := dbc.db.Collection(CallTraceCollection)
+		var doc bson.M
+		err := coll.FindOne(ctx, bson.M{"_id": id}).Decode(&doc)
+		if err != nil {
+			t.Fatalf("FindOne(%s): %v", id, err)
+		}
+	}
+}
+
+func TestInsertRawCallTraces_Empty(t *testing.T) {
+	dbc := newTestCallTraceDbContext(t)
+	ctx := context.Background()
+
+	err := dbc.InsertRawCallTraces(ctx, nil)
+	if err != nil {
+		t.Errorf("expected no error for nil inputs, got %v", err)
+	}
+
+	err = dbc.InsertRawCallTraces(ctx, []RawDataWithBlockNum{})
+	if err != nil {
+		t.Errorf("expected no error for empty inputs, got %v", err)
+	}
+}
+
+func TestInsertRawCallTraces_RollbackOnDuplicate(t *testing.T) {
+	dbc := newTestCallTraceDbContext(t)
+	ctx := context.Background()
+
+	rawBlocks := loadJson(t, "blockCallTraces.json")
+	rawA := rawBlocks["0x4870d2"]
+	rawB := rawBlocks["0x1a33bb"]
+
+	if err := dbc.InsertRawCallTrace(ctx, RawDataWithBlockNum{BlockNumber: 0x4870d2, Raw: rawA}); err != nil {
+		t.Fatalf("InsertRawCallTrace A: %v", err)
+	}
+
+	err := dbc.InsertRawCallTraces(ctx, []RawDataWithBlockNum{
+		{BlockNumber: 0x1a33bb, Raw: rawB},
+		{BlockNumber: 0x4870d2, Raw: rawA},
+	})
+	if err == nil {
+		t.Fatal("expected error from duplicate key")
+	}
+
+	count, err := dbc.CountCallTraces(ctx)
+	if err != nil {
+		t.Fatalf("CountCallTraces: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("count = %d, want 1 (B should have been rolled back)", count)
+	}
+
+	fetchedA, err := dbc.GetCallTrace(ctx, 0x4870d2)
+	if err != nil || fetchedA == nil {
+		t.Fatalf("GetCallTrace A: expected trace to exist, err=%v", err)
+	}
+
+	fetchedB, err := dbc.GetCallTrace(ctx, 0x1a33bb)
+	if err != nil {
+		t.Fatalf("GetCallTrace B: unexpected error %v", err)
+	}
+	if fetchedB != nil {
+		t.Error("trace B should have been rolled back")
+	}
+}
+
+func TestInsertRawCallTraces_RollbackMultipleInserted(t *testing.T) {
+	dbc := newTestCallTraceDbContext(t)
+	ctx := context.Background()
+
+	rawBlocks := loadJson(t, "blockCallTraces.json")
+	rawA := rawBlocks["0x4870d2"]
+	rawB := rawBlocks["0x1a33bb"]
+
+	if err := dbc.InsertRawCallTrace(ctx, RawDataWithBlockNum{BlockNumber: 0x4870d2, Raw: rawA}); err != nil {
+		t.Fatalf("InsertRawCallTrace A: %v", err)
+	}
+
+	err := dbc.InsertRawCallTraces(ctx, []RawDataWithBlockNum{
+		{BlockNumber: 0x1a33bb, Raw: rawB},
+		{BlockNumber: 0xf4246, Raw: rawB},
+		{BlockNumber: 0x4870d2, Raw: rawA},
+	})
+	if err == nil {
+		t.Fatal("expected error from duplicate key")
+	}
+
+	count, err := dbc.CountCallTraces(ctx)
+	if err != nil {
+		t.Fatalf("CountCallTraces: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("count = %d, want 1 (B and C should have been rolled back)", count)
+	}
+
+	fetchedC, err := dbc.GetCallTrace(ctx, 0xf4246)
+	if err != nil {
+		t.Fatalf("GetCallTrace C: unexpected error %v", err)
+	}
+	if fetchedC != nil {
+		t.Error("trace C should have been rolled back")
+	}
+
+	fetchedB, err := dbc.GetCallTrace(ctx, 0x1a33bb)
+	if err != nil {
+		t.Fatalf("GetCallTrace B: unexpected error %v", err)
+	}
+	if fetchedB != nil {
+		t.Error("trace B should have been rolled back")
 	}
 }
 
@@ -409,6 +747,87 @@ func TestUpsertCallTrace(t *testing.T) {
 	}
 }
 
+func TestUpsertCallTraces(t *testing.T) {
+	dbc := newTestCallTraceDbContext(t)
+	ctx := context.Background()
+
+	raw := loadJsonN(t, "blockCallTraces.json")
+	var traces []*BlockCallTrace
+
+	for _, key := range []string{"0x1a33b3", "0x4870d2"} {
+		tracesJSON := raw[key]
+		var rpcTraces []rpc.TransactionTrace
+		for _, tj := range tracesJSON {
+			var tr rpc.TransactionTrace
+			if err := json.Unmarshal(tj, &tr); err != nil {
+				t.Fatalf("unmarshal trace: %v", err)
+			}
+			tr.Type = rpc.TraceTypeCall
+			rpcTraces = append(rpcTraces, tr)
+		}
+
+		var blockNum uint64
+		fmt.Sscanf(key, "0x%x", &blockNum)
+
+		trace, err := NewBlockCallTraceFromRPC(blockNum, rpcTraces)
+		if err != nil {
+			t.Fatalf("NewBlockCallTraceFromRPC(%s): %v", key, err)
+		}
+		if trace != nil {
+			traces = append(traces, trace)
+		}
+	}
+
+	if err := dbc.UpsertCallTraces(ctx, traces); err != nil {
+		t.Fatalf("first UpsertCallTraces: %v", err)
+	}
+
+	count, _ := dbc.CountCallTraces(ctx)
+	if count != int64(len(traces)) {
+		t.Errorf("count after first upsert = %d, want %d", count, len(traces))
+	}
+
+	for _, trace := range traces {
+		trace.Data[0].TxHash = "0xmodified"
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	if err := dbc.UpsertCallTraces(ctx, traces); err != nil {
+		t.Fatalf("second UpsertCallTraces: %v", err)
+	}
+
+	count, _ = dbc.CountCallTraces(ctx)
+	if count != int64(len(traces)) {
+		t.Errorf("count after second upsert = %d, want %d (upsert should not create duplicates)", count, len(traces))
+	}
+
+	for _, trace := range traces {
+		fetched, err := dbc.GetCallTrace(ctx, trace.Number)
+		if err != nil {
+			t.Fatalf("GetCallTrace(%d): %v", trace.Number, err)
+		}
+		if fetched.Data[0].TxHash != "0xmodified" {
+			t.Errorf("block %d txHash = %s, want 0xmodified", trace.Number, fetched.Data[0].TxHash)
+		}
+	}
+}
+
+func TestUpsertCallTraces_Empty(t *testing.T) {
+	dbc := newTestCallTraceDbContext(t)
+	ctx := context.Background()
+
+	err := dbc.UpsertCallTraces(ctx, nil)
+	if err != nil {
+		t.Errorf("expected no error for nil traces, got %v", err)
+	}
+
+	err = dbc.UpsertCallTraces(ctx, []*BlockCallTrace{})
+	if err != nil {
+		t.Errorf("expected no error for empty traces, got %v", err)
+	}
+}
+
 func TestUpsertRawCallTrace(t *testing.T) {
 	dbc := newTestCallTraceDbContext(t)
 	ctx := context.Background()
@@ -416,7 +835,7 @@ func TestUpsertRawCallTrace(t *testing.T) {
 	rawBlocks := loadJson(t, "blockCallTraces.json")
 	raw1 := rawBlocks["0x4870d2"]
 
-	if err := dbc.UpsertRawCallTrace(ctx, 0x4870d2, raw1); err != nil {
+	if err := dbc.UpsertRawCallTrace(ctx, RawDataWithBlockNum{BlockNumber: 0x4870d2, Raw: raw1}); err != nil {
 		t.Fatalf("first UpsertRawCallTrace: %v", err)
 	}
 
@@ -427,13 +846,66 @@ func TestUpsertRawCallTrace(t *testing.T) {
 
 	raw2 := rawBlocks["0x4870d2"]
 	time.Sleep(10 * time.Millisecond)
-	if err := dbc.UpsertRawCallTrace(ctx, 0x4870d2, raw2); err != nil {
+	if err := dbc.UpsertRawCallTrace(ctx, RawDataWithBlockNum{BlockNumber: 0x4870d2, Raw: raw2}); err != nil {
 		t.Fatalf("second UpsertRawCallTrace: %v", err)
 	}
 
 	count, _ = dbc.CountCallTraces(ctx)
 	if count != 1 {
 		t.Errorf("count after second upsert = %d, want 1 (upsert should not create duplicate)", count)
+	}
+}
+
+func TestUpsertRawCallTraces(t *testing.T) {
+	dbc := newTestCallTraceDbContext(t)
+	ctx := context.Background()
+
+	rawBlocks := loadJson(t, "blockCallTraces.json")
+	keys := []string{"0x1a33b3", "0x4870d2"}
+
+	inputs := make([]RawDataWithBlockNum, 0, len(keys))
+	for _, key := range keys {
+		var blockNum uint64
+		fmt.Sscanf(key, "0x%x", &blockNum)
+		inputs = append(inputs, RawDataWithBlockNum{
+			BlockNumber: blockNum,
+			Raw:         rawBlocks[key],
+		})
+	}
+
+	if err := dbc.UpsertRawCallTraces(ctx, inputs); err != nil {
+		t.Fatalf("first UpsertRawCallTraces: %v", err)
+	}
+
+	count, _ := dbc.CountCallTraces(ctx)
+	if count != int64(len(inputs)) {
+		t.Errorf("count after first upsert = %d, want %d", count, len(inputs))
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	if err := dbc.UpsertRawCallTraces(ctx, inputs); err != nil {
+		t.Fatalf("second UpsertRawCallTraces: %v", err)
+	}
+
+	count, _ = dbc.CountCallTraces(ctx)
+	if count != int64(len(inputs)) {
+		t.Errorf("count after second upsert = %d, want %d (upsert should not create duplicates)", count, len(inputs))
+	}
+}
+
+func TestUpsertRawCallTraces_Empty(t *testing.T) {
+	dbc := newTestCallTraceDbContext(t)
+	ctx := context.Background()
+
+	err := dbc.UpsertRawCallTraces(ctx, nil)
+	if err != nil {
+		t.Errorf("expected no error for nil inputs, got %v", err)
+	}
+
+	err = dbc.UpsertRawCallTraces(ctx, []RawDataWithBlockNum{})
+	if err != nil {
+		t.Errorf("expected no error for empty inputs, got %v", err)
 	}
 }
 

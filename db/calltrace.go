@@ -18,7 +18,6 @@ package db
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -29,7 +28,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// BlockCallTrace stores all call traces of a block stored in MongoDB.
+// BlockCallTrace stores all call traces of a block in MongoDB.
 type BlockCallTrace struct {
 	ID        string                 `bson:"_id"`
 	Number    uint64                 `bson:"number"`
@@ -38,7 +37,7 @@ type BlockCallTrace struct {
 	UpdatedAt time.Time              `bson:"updated_at"`
 }
 
-// CallFrame represents a single call frame from callTracer stored in MongoDB.
+// CallFrame represents a single call frame from callTracer in MongoDB.
 type CallFrame struct {
 	From    core.Address `bson:"from"`
 	To      core.Address `bson:"to"`
@@ -57,7 +56,7 @@ type TransactionCallTrace struct {
 	Result CallFrame `bson:"result"`
 }
 
-// Return a BSON BlockCallTrace from RPC TransactionTraces.
+// Return BSON BlockCallTrace from RPC TransactionTraces.
 func NewBlockCallTraceFromRPC(blockNum uint64, rpcTraces []rpc.TransactionTrace) (*BlockCallTrace, error) {
 	if len(rpcTraces) == 0 {
 		return nil, nil
@@ -86,7 +85,7 @@ func NewBlockCallTraceFromRPC(blockNum uint64, rpcTraces []rpc.TransactionTrace)
 	}, nil
 }
 
-// newCallFrameFromRPC converts an RPC CallFrame to a BSON CallFrame.
+// Return RPC CallFrame to BSON CallFrame.
 func newCallFrameFromRPC(cf rpc.CallFrame) CallFrame {
 	return CallFrame{
 		From:    cf.From,
@@ -112,7 +111,7 @@ func newCallFramesFromRPC(cfs []rpc.CallFrame) []CallFrame {
 	return out
 }
 
-// Return a call trace by ID.
+// Get a call trace by ID.
 func (dbc *DbContext) GetCallTrace(ctx context.Context, number uint64) (*BlockCallTrace, error) {
 	coll := dbc.db.Collection(CallTraceCollection)
 	var trace BlockCallTrace
@@ -126,7 +125,7 @@ func (dbc *DbContext) GetCallTrace(ctx context.Context, number uint64) (*BlockCa
 	return &trace, nil
 }
 
-// Return a call trace by ID without ORM mapping.
+// Get a call trace by ID without ORM mapping.
 func (dbc *DbContext) GetRawCallTrace(ctx context.Context, number uint64) (*RawBlockData, error) {
 	coll := dbc.db.Collection(CallTraceCollection)
 	var data RawBlockData
@@ -145,9 +144,90 @@ func (dbc *DbContext) InsertCallTrace(ctx context.Context, trace *BlockCallTrace
 	return dbc.insertCallTrace(ctx, trace, false)
 }
 
+// Insert multiple BlockCallTrace documents.
+func (dbc *DbContext) InsertCallTraces(ctx context.Context, traces []*BlockCallTrace) error {
+	if len(traces) == 0 {
+		return nil
+	}
+
+	coll := dbc.db.Collection(CallTraceCollection)
+	utcNow := time.Now().UTC()
+
+	docs := make([]interface{}, len(traces))
+	for i, trace := range traces {
+		trace.ID = fmt.Sprintf("%d", trace.Number)
+		if trace.CreatedAt.IsZero() {
+			trace.CreatedAt = utcNow
+		}
+		trace.UpdatedAt = utcNow
+		docs[i] = trace
+	}
+
+	result, err := coll.InsertMany(ctx, docs)
+	if err != nil {
+		if result != nil && len(result.InsertedIDs) > 0 {
+			insertedIDs := make([]string, 0, len(result.InsertedIDs))
+			for _, id := range result.InsertedIDs {
+				if s, ok := id.(string); ok {
+					insertedIDs = append(insertedIDs, s)
+				}
+			}
+			if len(insertedIDs) > 0 {
+				coll.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": insertedIDs}})
+			}
+		}
+		return fmt.Errorf("InsertCallTraces: %w", err)
+	}
+	return nil
+}
+
 // Insert a new BlockCallTrace document without ORM mapping.
-func (dbc *DbContext) InsertRawCallTrace(ctx context.Context, blockNumber uint64, raw json.RawMessage) error {
-	return dbc.insertRawCallTrace(ctx, blockNumber, raw, false)
+func (dbc *DbContext) InsertRawCallTrace(ctx context.Context, input RawDataWithBlockNum) error {
+	return dbc.insertRawCallTrace(ctx, input, false)
+}
+
+// Insert multiple BlockCallTrace documents without ORM mapping.
+func (dbc *DbContext) InsertRawCallTraces(ctx context.Context, inputs []RawDataWithBlockNum) error {
+	if len(inputs) == 0 {
+		return nil
+	}
+
+	coll := dbc.db.Collection(CallTraceCollection)
+	utcNow := time.Now().UTC()
+
+	docs := make([]*RawBlockArray, len(inputs))
+	for i, input := range inputs {
+		data, err := JsonToBsonArr(input.Raw)
+		if err != nil {
+			return fmt.Errorf("InsertRawCallTraces: failed to convert JSON to BSON at index %d: %w", i, err)
+		}
+
+		id := fmt.Sprintf("%d", input.BlockNumber)
+		docs[i] = &RawBlockArray{
+			ID:        id,
+			Number:    input.BlockNumber,
+			Data:      data,
+			CreatedAt: utcNow,
+			UpdatedAt: utcNow,
+		}
+	}
+
+	result, err := coll.InsertMany(ctx, docs)
+	if err != nil {
+		if result != nil && len(result.InsertedIDs) > 0 {
+			insertedIDs := make([]string, 0, len(result.InsertedIDs))
+			for _, id := range result.InsertedIDs {
+				if s, ok := id.(string); ok {
+					insertedIDs = append(insertedIDs, s)
+				}
+			}
+			if len(insertedIDs) > 0 {
+				coll.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": insertedIDs}})
+			}
+		}
+		return fmt.Errorf("InsertRawCallTraces: %w", err)
+	}
+	return nil
 }
 
 // Insert or replace a BlockCallTrace document.
@@ -155,9 +235,95 @@ func (dbc *DbContext) UpsertCallTrace(ctx context.Context, trace *BlockCallTrace
 	return dbc.insertCallTrace(ctx, trace, true)
 }
 
+// Insert or replace multiple BlockCallTrace documents.
+func (dbc *DbContext) UpsertCallTraces(ctx context.Context, traces []*BlockCallTrace) error {
+	if len(traces) == 0 {
+		return nil
+	}
+
+	coll := dbc.db.Collection(CallTraceCollection)
+	utcNow := time.Now().UTC()
+
+	models := make([]mongo.WriteModel, len(traces))
+	for i, trace := range traces {
+		trace.ID = fmt.Sprintf("%d", trace.Number)
+		if trace.CreatedAt.IsZero() {
+			trace.CreatedAt = utcNow
+		}
+		trace.UpdatedAt = utcNow
+
+		filter := bson.M{"_id": trace.ID}
+		models[i] = mongo.NewReplaceOneModel().SetFilter(filter).SetReplacement(trace).SetUpsert(true)
+	}
+
+	result, err := coll.BulkWrite(ctx, models)
+	if err != nil {
+		if result != nil && len(result.UpsertedIDs) > 0 {
+			upsertedIDs := make([]string, 0, len(result.UpsertedIDs))
+			for _, id := range result.UpsertedIDs {
+				if s, ok := id.(string); ok {
+					upsertedIDs = append(upsertedIDs, s)
+				}
+			}
+			if len(upsertedIDs) > 0 {
+				coll.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": upsertedIDs}})
+			}
+		}
+		return fmt.Errorf("UpsertCallTraces: %w", err)
+	}
+	return nil
+}
+
 // Insert or replace a BlockCallTrace document without ORM mapping.
-func (dbc *DbContext) UpsertRawCallTrace(ctx context.Context, blockNumber uint64, raw json.RawMessage) error {
-	return dbc.insertRawCallTrace(ctx, blockNumber, raw, true)
+func (dbc *DbContext) UpsertRawCallTrace(ctx context.Context, input RawDataWithBlockNum) error {
+	return dbc.insertRawCallTrace(ctx, input, true)
+}
+
+// Insert or replace multiple BlockCallTrace documents without ORM mapping.
+func (dbc *DbContext) UpsertRawCallTraces(ctx context.Context, inputs []RawDataWithBlockNum) error {
+	if len(inputs) == 0 {
+		return nil
+	}
+
+	coll := dbc.db.Collection(CallTraceCollection)
+	utcNow := time.Now().UTC()
+
+	models := make([]mongo.WriteModel, len(inputs))
+	for i, input := range inputs {
+		data, err := JsonToBsonArr(input.Raw)
+		if err != nil {
+			return fmt.Errorf("UpsertRawCallTraces: failed to convert JSON to BSON at index %d: %w", i, err)
+		}
+
+		id := fmt.Sprintf("%d", input.BlockNumber)
+		doc := &RawBlockArray{
+			ID:        id,
+			Number:    input.BlockNumber,
+			Data:      data,
+			CreatedAt: utcNow,
+			UpdatedAt: utcNow,
+		}
+
+		filter := bson.M{"_id": id}
+		models[i] = mongo.NewReplaceOneModel().SetFilter(filter).SetReplacement(doc).SetUpsert(true)
+	}
+
+	result, err := coll.BulkWrite(ctx, models)
+	if err != nil {
+		if result != nil && len(result.UpsertedIDs) > 0 {
+			upsertedIDs := make([]string, 0, len(result.UpsertedIDs))
+			for _, id := range result.UpsertedIDs {
+				if s, ok := id.(string); ok {
+					upsertedIDs = append(upsertedIDs, s)
+				}
+			}
+			if len(upsertedIDs) > 0 {
+				coll.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": upsertedIDs}})
+			}
+		}
+		return fmt.Errorf("UpsertRawCallTraces: %w", err)
+	}
+	return nil
 }
 
 // Delete a call trace by ID
@@ -194,19 +360,19 @@ func (dbc *DbContext) insertCallTrace(ctx context.Context, trace *BlockCallTrace
 	return err
 }
 
-func (dbc *DbContext) insertRawCallTrace(ctx context.Context, blockNumber uint64, raw json.RawMessage, upsert bool) error {
+func (dbc *DbContext) insertRawCallTrace(ctx context.Context, input RawDataWithBlockNum, upsert bool) error {
 	coll := dbc.db.Collection(CallTraceCollection)
 
-	data, err := JsonToBsonArr(raw)
+	data, err := JsonToBsonArr(input.Raw)
 	if err != nil {
-		return fmt.Errorf("insertRawBlock: failed to convert JSON to BSON: %w", err)
+		return fmt.Errorf("insertRawCallTrace: failed to convert JSON to BSON: %w", err)
 	}
 
 	utcNow := time.Now().UTC()
-	id := fmt.Sprintf("%d", blockNumber)
+	id := fmt.Sprintf("%d", input.BlockNumber)
 	doc := &RawBlockArray{
 		ID:        id,
-		Number:    blockNumber,
+		Number:    input.BlockNumber,
 		Data:      data,
 		CreatedAt: utcNow,
 		UpdatedAt: utcNow,
