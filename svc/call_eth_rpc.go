@@ -48,7 +48,7 @@ func NewCallEthRpc(name string, rpc *rpc.Client, cfg *config.ServiceConfig, logg
 	return svc
 }
 
-// Implement ServiceCoreInternal.coreProcessHook.
+// Implement multiplex.ServiceCoreInternal.
 func (s *CallEthRpc) coreProcessHook(workerID uint64, msg *multiplex.ServiceMessage) *multiplex.HookState {
 	switch msg.Command {
 	case "rpc_call":

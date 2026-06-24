@@ -27,7 +27,7 @@ import (
 	"github.com/tforce-io/tf-golib/multiplex"
 )
 
-// CallEthRpc executes high-level Ethereum API with batch and paging support.
+// CallEthApi executes high-level Ethereum API with batch and paging support.
 type CallEthApi struct {
 	multiplex.ServiceCore
 	i *multiplex.ServiceCoreInternal
@@ -40,7 +40,7 @@ func NewCallEthApi(logger zerolog.Logger) *CallEthApi {
 	return svc
 }
 
-// Implement ServiceCoreInternal.coreProcessHook.
+// Implement multiplex.ServiceCoreInternal.
 func (s *CallEthApi) coreProcessHook(workerID uint64, msg *multiplex.ServiceMessage) *multiplex.HookState {
 	switch msg.Command {
 	case "get_blocks":
