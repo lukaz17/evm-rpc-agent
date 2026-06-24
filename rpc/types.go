@@ -19,6 +19,8 @@ package rpc
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/lukaz17/evm-rpc-agent/core"
 )
 
 const (
@@ -29,34 +31,34 @@ const (
 
 // Block represents an Ethereum block.
 type Block struct {
-	Number           Integer         `json:"number"`
-	Time             Integer         `json:"timestamp"`
-	Hash             Bytes32         `json:"hash"`
-	Nonce            Integer         `json:"nonce"`
-	Coinbase         Address         `json:"miner"`
-	Difficulty       Integer         `json:"difficulty"`
-	TotalDifficulty  Integer         `json:"totalDifficulty"`
-	Size             Integer         `json:"size"`
-	GasUsed          Integer         `json:"gasUsed"`
-	GasLimit         Integer         `json:"gasLimit"`
-	Extra            Bytes           `json:"extraData"`
-	MixDigest        Bytes32         `json:"mixHash"`
-	LogsBloom        Bytes           `json:"logsBloom"`
-	ParentHash       Bytes32         `json:"parentHash"`
-	UncleHash        Bytes32         `json:"sha3Uncles"`
-	TransactionsRoot Bytes32         `json:"transactionsRoot"`
-	ReceiptsRoot     Bytes32         `json:"receiptsRoot"`
-	StateRoot        Bytes32         `json:"stateRoot"`
+	Number           core.Integer    `json:"number"`
+	Time             core.Integer    `json:"timestamp"`
+	Hash             core.Bytes32    `json:"hash"`
+	Nonce            core.Integer    `json:"nonce"`
+	Coinbase         core.Address    `json:"miner"`
+	Difficulty       core.Integer    `json:"difficulty"`
+	TotalDifficulty  core.Integer    `json:"totalDifficulty"`
+	Size             core.Integer    `json:"size"`
+	GasUsed          core.Integer    `json:"gasUsed"`
+	GasLimit         core.Integer    `json:"gasLimit"`
+	Extra            core.Bytes      `json:"extraData"`
+	MixDigest        core.Bytes32    `json:"mixHash"`
+	LogsBloom        core.Bytes      `json:"logsBloom"`
+	ParentHash       core.Bytes32    `json:"parentHash"`
+	UncleHash        core.Bytes32    `json:"sha3Uncles"`
+	TransactionsRoot core.Bytes32    `json:"transactionsRoot"`
+	ReceiptsRoot     core.Bytes32    `json:"receiptsRoot"`
+	StateRoot        core.Bytes32    `json:"stateRoot"`
 	RawTransactions  json.RawMessage `json:"transactions,omitempty"`
 	RawUncles        json.RawMessage `json:"uncles,omitempty"`
 }
 
 // Return transaction hashes from the block (when txDetails=false).
-func (b *Block) TransactionsHashes() ([]Bytes32, error) {
+func (b *Block) TransactionsHashes() ([]core.Bytes32, error) {
 	if b.RawTransactions == nil {
 		return nil, nil
 	}
-	var hashes []Bytes32
+	var hashes []core.Bytes32
 	if err := json.Unmarshal(b.RawTransactions, &hashes); err != nil {
 		return nil, fmt.Errorf("unmarshal transaction hashes: %w", err)
 	}
@@ -76,11 +78,11 @@ func (b *Block) TransactionsFull() ([]Transaction, error) {
 }
 
 // Return uncle hashes from the block.
-func (b *Block) Uncles() ([]Bytes32, error) {
+func (b *Block) Uncles() ([]core.Bytes32, error) {
 	if b.RawUncles == nil {
 		return nil, nil
 	}
-	var uncles []Bytes32
+	var uncles []core.Bytes32
 	if err := json.Unmarshal(b.RawUncles, &uncles); err != nil {
 		return nil, fmt.Errorf("unmarshal uncles: %w", err)
 	}
@@ -89,13 +91,13 @@ func (b *Block) Uncles() ([]Bytes32, error) {
 
 // CallFrame represents a single call frame of call tracer.
 type CallFrame struct {
-	From    Address     `json:"from"`
-	Gas     Integer     `json:"gas"`
-	GasUsed Integer     `json:"gasUsed"`
-	To      Address     `json:"to"`
-	Input   Bytes       `json:"input"`
-	Output  Bytes       `json:"output,omitempty"`
-	Value   Integer     `json:"value"`
+	From    core.Address  `json:"from"`
+	Gas     core.Integer  `json:"gas"`
+	GasUsed core.Integer  `json:"gasUsed"`
+	To      core.Address  `json:"to"`
+	Input   core.Bytes    `json:"input"`
+	Output  core.Bytes    `json:"output,omitempty"`
+	Value   core.Integer  `json:"value"`
 	Type    string      `json:"type"`
 	Calls   []CallFrame `json:"calls,omitempty"`
 }
@@ -114,36 +116,36 @@ type StructLog struct {
 
 // PrestateAccount represents the prestate of an account for prestate rracer.
 type PrestateAccount struct {
-	Balance  Integer           `json:"balance"`
+	Balance  core.Integer      `json:"balance"`
 	Nonce    uint64            `json:"nonce"`
-	Code     Bytes             `json:"code,omitempty"`
+	Code     core.Bytes        `json:"code,omitempty"`
 	CodeHash string            `json:"codeHash,omitempty"`
 	Storage  map[string]string `json:"storage,omitempty"`
 }
 
 // Transaction represents an Ethereum transaction.
 type Transaction struct {
-	Hash        Bytes32 `json:"hash"`
-	BlockNumber Integer `json:"blockNumber"`
-	BlockHash   Bytes32 `json:"blockHash"`
-	BlockTime   Integer `json:"blockTimestamp"`
-	Nonce       Integer `json:"nonce"`
-	Index       Integer `json:"transactionIndex"`
-	From        Address `json:"from"`
-	To          Address `json:"to"`
-	Value       Integer `json:"value"`
-	Gas         Integer `json:"gas"`
-	GasPrice    Integer `json:"gasPrice"`
-	Type        Integer `json:"type"`
-	Input       Bytes   `json:"input"`
-	V           Integer `json:"v"`
-	R           Bytes   `json:"r"`
-	S           Bytes   `json:"s"`
+	Hash        core.Bytes32 `json:"hash"`
+	BlockNumber core.Integer `json:"blockNumber"`
+	BlockHash   core.Bytes32 `json:"blockHash"`
+	BlockTime   core.Integer `json:"blockTimestamp"`
+	Nonce       core.Integer `json:"nonce"`
+	Index       core.Integer `json:"transactionIndex"`
+	From        core.Address `json:"from"`
+	To          core.Address `json:"to"`
+	Value       core.Integer `json:"value"`
+	Gas         core.Integer `json:"gas"`
+	GasPrice    core.Integer `json:"gasPrice"`
+	Type        core.Integer `json:"type"`
+	Input       core.Bytes   `json:"input"`
+	V           core.Integer `json:"v"`
+	R           core.Bytes   `json:"r"`
+	S           core.Bytes   `json:"s"`
 }
 
 // TransactionTrace represents a single transaction trace.
 type TransactionTrace struct {
-	TxHash Bytes32         `json:"txHash"`
+	TxHash core.Bytes32    `json:"txHash"`
 	Type   string          `json:"-"`
 	Result json.RawMessage `json:"result"`
 }

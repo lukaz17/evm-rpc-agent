@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with EVM RPC Agent. If not, see <https://www.gnu.org/licenses/>.
 
-package rpc
+package core
 
 import (
 	"encoding/hex"
