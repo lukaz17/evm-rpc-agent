@@ -29,8 +29,8 @@ import (
 const (
 	DefaultTimeout = 10 * time.Second
 
-	BlockCollection      = "blocks"
-	CallTracesCollection = "call_traces"
+	BlockCollection     = "blocks"
+	CallTraceCollection = "call_traces"
 )
 
 // DbContext holds the handles that access MongoDB.
@@ -41,7 +41,7 @@ type DbContext struct {
 	dbName string
 }
 
-// Return a new DbContext instance.
+// Return new DbContext instance.
 func NewDbContext(cfg *config.DatabaseConfig) *DbContext {
 	return &DbContext{
 		uri:    cfg.Uri,

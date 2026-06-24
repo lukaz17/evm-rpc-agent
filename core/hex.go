@@ -17,11 +17,14 @@
 package core
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
 	"strings"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 const (
@@ -85,8 +88,31 @@ func (a *Address) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Implement bson.ValueMarshaler.
+func (a Address) MarshalBSONValue() (byte, []byte, error) {
+	t, data, err := bson.MarshalValue(a.Hex())
+	return byte(t), data, err
+}
+
+// Implement bson.ValueUnmarshaler.
+func (a *Address) UnmarshalBSONValue(t byte, data []byte) error {
+	rv := bson.RawValue{Type: bson.Type(t), Value: data}
+	s := rv.StringValue()
+	addr, err := decodeAddress(s)
+	if err != nil {
+		return err
+	}
+	*a = addr
+	return nil
+}
+
 // Bytes represents a variable-length hex-encoded byte sequence.
 type Bytes []byte
+
+// Return new instance of Bytes from a hex string.
+func NewBytesFromString(s string) (Bytes, error) {
+	return decodeHex(s)
+}
 
 // Return Bytes as a byte slice.
 func (b Bytes) Bytes() []byte {
@@ -122,6 +148,31 @@ func (b *Bytes) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
+	n, err := decodeHex(s)
+	if err != nil {
+		return err
+	}
+	*b = n
+	return nil
+}
+
+// Implement bson.ValueMarshaler.
+func (b Bytes) MarshalBSONValue() (byte, []byte, error) {
+	if len(b) == 0 {
+		return byte(bson.TypeNull), nil, nil
+	}
+	t, data, err := bson.MarshalValue(b.Hex())
+	return byte(t), data, err
+}
+
+// Implement bson.ValueUnmarshaler.
+func (b *Bytes) UnmarshalBSONValue(t byte, data []byte) error {
+	if bson.Type(t) == bson.TypeNull {
+		*b = nil
+		return nil
+	}
+	rv := bson.RawValue{Type: bson.Type(t), Value: data}
+	s := rv.StringValue()
 	n, err := decodeHex(s)
 	if err != nil {
 		return err
@@ -181,8 +232,38 @@ func (b *Bytes32) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Implement bson.ValueMarshaler.
+func (b Bytes32) MarshalBSONValue() (byte, []byte, error) {
+	t, data, err := bson.MarshalValue(b.Hex())
+	return byte(t), data, err
+}
+
+// Implement bson.ValueUnmarshaler.
+func (b *Bytes32) UnmarshalBSONValue(t byte, data []byte) error {
+	rv := bson.RawValue{Type: bson.Type(t), Value: data}
+	s := rv.StringValue()
+	h, err := decodeBytes32(s)
+	if err != nil {
+		return err
+	}
+	*b = h
+	return nil
+}
+
 // Integer represents a hex-encoded integer.
 type Integer big.Int
+
+// Return new instance of Integer from a numeric string.
+func NewIntegerFromString(s string) (Integer, error) {
+	val, err := decodeNumericString(s)
+	if err != nil {
+		return Integer{}, err
+	}
+	if val == nil {
+		return Integer{}, nil
+	}
+	return Integer(*val), nil
+}
 
 // Return Integer as a hex string with 0x prefix.
 func (i *Integer) Hex() string {
@@ -226,18 +307,71 @@ func (i *Integer) MarshalJSON() ([]byte, error) {
 // Implement json.Unmarshaler.
 func (i *Integer) UnmarshalJSON(data []byte) error {
 	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	val, err := decodeNumericString(s)
-	if err != nil {
-		return err
-	}
-	if val == nil {
-		*i = Integer{}
+	if err := json.Unmarshal(data, &s); err == nil {
+		val, err := decodeNumericString(s)
+		if err != nil {
+			return err
+		}
+		if val == nil {
+			*i = Integer{}
+			return nil
+		}
+		*i = Integer(*val)
 		return nil
 	}
+
+	var n json.Number
+	if err := json.Unmarshal(data, &n); err != nil {
+		return err
+	}
+	val, ok := new(big.Int).SetString(string(n), 10)
+	if !ok {
+		return fmt.Errorf("decode numeric value %s: invalid number", string(data))
+	}
 	*i = Integer(*val)
+	return nil
+}
+
+// Implement bson.ValueMarshaler.
+func (i Integer) MarshalBSONValue() (byte, []byte, error) {
+	if (*big.Int)(&i).Sign() == 0 {
+		b := make([]byte, 4)
+		return byte(bson.TypeInt32), b, nil
+	}
+	val := (*big.Int)(&i)
+	if val.IsUint64() {
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, val.Uint64())
+		return byte(bson.TypeInt64), b, nil
+	}
+	t, data, err := bson.MarshalValue("0x" + val.Text(16))
+	return byte(t), data, err
+}
+
+// Implement bson.ValueUnmarshaler.
+func (i *Integer) UnmarshalBSONValue(t byte, data []byte) error {
+	switch bson.Type(t) {
+	case bson.TypeInt32:
+		v := binary.LittleEndian.Uint32(data)
+		*i = Integer(*big.NewInt(int64(v)))
+	case bson.TypeInt64:
+		v := binary.LittleEndian.Uint64(data)
+		*i = Integer(*new(big.Int).SetUint64(v))
+	case bson.TypeString:
+		rv := bson.RawValue{Type: bson.Type(t), Value: data}
+		s := rv.StringValue()
+		val, err := decodeNumericString(s)
+		if err != nil {
+			return err
+		}
+		if val == nil {
+			*i = Integer{}
+			return nil
+		}
+		*i = Integer(*val)
+	default:
+		return fmt.Errorf("cannot unmarshal BSON type %s into Integer", bson.Type(t))
+	}
 	return nil
 }
 

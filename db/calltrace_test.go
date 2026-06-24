@@ -78,23 +78,23 @@ func TestNewBlockCallTraceFromRPC_Simple(t *testing.T) {
 	if firstTx.TxHash != "0xc237db67c16416d8f129cb1d5c36f801b2e3625fae7f29b98ca9e349e5752952" {
 		t.Errorf("first txHash = %s", firstTx.TxHash)
 	}
-	if firstTx.Result.From != "0xa30d8157911ef23c46c0eb71889efe6a648a41f7" {
+	if firstTx.Result.From.Hex() != "0xa30d8157911ef23c46c0eb71889efe6a648a41f7" {
 		t.Errorf("first from = %s", firstTx.Result.From)
 	}
-	if firstTx.Result.To != "0xdef426319baf76cb4359e49268e05023b834f4df" {
+	if firstTx.Result.To.Hex() != "0xdef426319baf76cb4359e49268e05023b834f4df" {
 		t.Errorf("first to = %s", firstTx.Result.To)
 	}
 	if firstTx.Result.Type != "CALL" {
 		t.Errorf("first type = %s, want CALL", firstTx.Result.Type)
 	}
-	if firstTx.Result.Gas != "0xe57e0" {
-		t.Errorf("first gas = %s, want 0xe57e0", firstTx.Result.Gas)
+	if firstTx.Result.Gas.Hex() != "0xe57e0" {
+		t.Errorf("first gas = %s, want 0xe57e0", firstTx.Result.Gas.Hex())
 	}
-	if firstTx.Result.GasUsed != "0x5208" {
-		t.Errorf("first gasUsed = %s, want 0x5208", firstTx.Result.GasUsed)
+	if firstTx.Result.GasUsed.Hex() != "0x5208" {
+		t.Errorf("first gasUsed = %s, want 0x5208", firstTx.Result.GasUsed.Hex())
 	}
-	if firstTx.Result.Value != "0x8510d6ff9c5b0000" {
-		t.Errorf("first value = %s, want 0x8510d6ff9c5b0000", firstTx.Result.Value)
+	if firstTx.Result.Value.Hex() != "0x8510d6ff9c5b0000" {
+		t.Errorf("first value = %s, want 0x8510d6ff9c5b0000", firstTx.Result.Value.Hex())
 	}
 	if len(firstTx.Result.Calls) != 0 {
 		t.Errorf("expected no sub-calls, got %d", len(firstTx.Result.Calls))
@@ -202,7 +202,7 @@ func TestInsertAndGetCallTrace(t *testing.T) {
 	if fetched.Data[0].TxHash != "0xc237db67c16416d8f129cb1d5c36f801b2e3625fae7f29b98ca9e349e5752952" {
 		t.Errorf("first txHash = %s", fetched.Data[0].TxHash)
 	}
-	if fetched.Data[0].Result.From != "0xa30d8157911ef23c46c0eb71889efe6a648a41f7" {
+	if fetched.Data[0].Result.From.Hex() != "0xa30d8157911ef23c46c0eb71889efe6a648a41f7" {
 		t.Errorf("first from = %s", fetched.Data[0].Result.From)
 	}
 }
@@ -246,7 +246,7 @@ func TestGetRawCallTrace(t *testing.T) {
 		t.Fatalf("InsertCallTrace: %v", err)
 	}
 
-	coll := dbc.db.Collection(CallTracesCollection)
+	coll := dbc.db.Collection(CallTraceCollection)
 	var doc bson.M
 	err = coll.FindOne(ctx, bson.M{"_id": "4747474"}).Decode(&doc)
 	if err != nil {
@@ -316,7 +316,7 @@ func TestInsertRawCallTrace(t *testing.T) {
 		t.Fatalf("InsertRawCallTrace: %v", err)
 	}
 
-	coll := dbc.db.Collection(CallTracesCollection)
+	coll := dbc.db.Collection(CallTraceCollection)
 	var doc bson.M
 	err := coll.FindOne(ctx, bson.M{"_id": "4747474"}).Decode(&doc)
 	if err != nil {
@@ -570,7 +570,7 @@ func newTestCallTraceDbContext(t *testing.T) *DbContext {
 		t.Fatalf("connect to mongodb: %v", err)
 	}
 
-	coll := dbc.db.Collection(CallTracesCollection)
+	coll := dbc.db.Collection(CallTraceCollection)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if _, err := coll.DeleteMany(ctx, bson.M{}); err != nil {

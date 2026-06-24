@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lukaz17/evm-rpc-agent/core"
 	"github.com/lukaz17/evm-rpc-agent/rpc"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -39,15 +40,15 @@ type BlockCallTrace struct {
 
 // CallFrame represents a single call frame from callTracer stored in MongoDB.
 type CallFrame struct {
-	From    string      `bson:"from"`
-	To      string      `bson:"to"`
-	Gas     string      `bson:"gas"`
-	GasUsed string      `bson:"gasUsed"`
-	Value   string      `bson:"value"`
-	Type    string      `bson:"type"`
-	Input   string      `bson:"input"`
-	Output  string      `bson:"output"`
-	Calls   []CallFrame `bson:"calls"`
+	From    core.Address `bson:"from"`
+	To      core.Address `bson:"to"`
+	Gas     core.Integer `bson:"gas"`
+	GasUsed core.Integer `bson:"gasUsed"`
+	Value   core.Integer `bson:"value"`
+	Type    string       `bson:"type"`
+	Input   core.Bytes   `bson:"input"`
+	Output  core.Bytes   `bson:"output"`
+	Calls   []CallFrame  `bson:"calls"`
 }
 
 // TransactionCallTrace represents a single transaction call trace within a block.
@@ -88,14 +89,14 @@ func NewBlockCallTraceFromRPC(blockNum uint64, rpcTraces []rpc.TransactionTrace)
 // newCallFrameFromRPC converts an RPC CallFrame to a BSON CallFrame.
 func newCallFrameFromRPC(cf rpc.CallFrame) CallFrame {
 	return CallFrame{
-		From:    cf.From.Hex(),
-		To:      cf.To.Hex(),
-		Gas:     cf.Gas.Hex(),
-		GasUsed: cf.GasUsed.Hex(),
-		Value:   cf.Value.Hex(),
+		From:    cf.From,
+		To:      cf.To,
+		Gas:     cf.Gas,
+		GasUsed: cf.GasUsed,
+		Value:   cf.Value,
 		Type:    cf.Type,
-		Input:   cf.Input.Hex(),
-		Output:  cf.Output.Hex(),
+		Input:   cf.Input,
+		Output:  cf.Output,
 		Calls:   newCallFramesFromRPC(cf.Calls),
 	}
 }
@@ -113,7 +114,7 @@ func newCallFramesFromRPC(cfs []rpc.CallFrame) []CallFrame {
 
 // Return a call trace by ID.
 func (dbc *DbContext) GetCallTrace(ctx context.Context, number uint64) (*BlockCallTrace, error) {
-	coll := dbc.db.Collection(CallTracesCollection)
+	coll := dbc.db.Collection(CallTraceCollection)
 	var trace BlockCallTrace
 	err := coll.FindOne(ctx, bson.M{"_id": fmt.Sprintf("%d", number)}).Decode(&trace)
 	if err != nil {
@@ -127,7 +128,7 @@ func (dbc *DbContext) GetCallTrace(ctx context.Context, number uint64) (*BlockCa
 
 // Return a call trace by ID without ORM mapping.
 func (dbc *DbContext) GetRawCallTrace(ctx context.Context, number uint64) (*RawBlockData, error) {
-	coll := dbc.db.Collection(CallTracesCollection)
+	coll := dbc.db.Collection(CallTraceCollection)
 	var data RawBlockData
 	err := coll.FindOne(ctx, bson.M{"_id": fmt.Sprintf("%d", number)}).Decode(&data)
 	if err != nil {
@@ -161,19 +162,19 @@ func (dbc *DbContext) UpsertRawCallTrace(ctx context.Context, blockNumber uint64
 
 // Delete a call trace by ID
 func (dbc *DbContext) DeleteCallTrace(ctx context.Context, number uint64) error {
-	coll := dbc.db.Collection(CallTracesCollection)
+	coll := dbc.db.Collection(CallTraceCollection)
 	_, err := coll.DeleteOne(ctx, bson.M{"_id": fmt.Sprintf("%d", number)})
 	return err
 }
 
 // Return size of CallTrace collection.
 func (dbc *DbContext) CountCallTraces(ctx context.Context) (int64, error) {
-	coll := dbc.db.Collection(CallTracesCollection)
+	coll := dbc.db.Collection(CallTraceCollection)
 	return coll.CountDocuments(ctx, bson.M{})
 }
 
 func (dbc *DbContext) insertCallTrace(ctx context.Context, trace *BlockCallTrace, upsert bool) error {
-	coll := dbc.db.Collection(CallTracesCollection)
+	coll := dbc.db.Collection(CallTraceCollection)
 	utcNow := time.Now().UTC()
 
 	trace.ID = fmt.Sprintf("%d", trace.Number)
@@ -194,7 +195,7 @@ func (dbc *DbContext) insertCallTrace(ctx context.Context, trace *BlockCallTrace
 }
 
 func (dbc *DbContext) insertRawCallTrace(ctx context.Context, blockNumber uint64, raw json.RawMessage, upsert bool) error {
-	coll := dbc.db.Collection(CallTracesCollection)
+	coll := dbc.db.Collection(CallTraceCollection)
 
 	data, err := JsonToBsonArr(raw)
 	if err != nil {

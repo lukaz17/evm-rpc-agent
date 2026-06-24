@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lukaz17/evm-rpc-agent/core"
 	"github.com/lukaz17/evm-rpc-agent/rpc"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -58,17 +59,17 @@ func TestNewBlockFromRPC_EmptyTX(t *testing.T) {
 	if block.Number != 0x42957 {
 		t.Errorf("Number = %d (0x%x), want 272727 (0x42957)", block.Number, block.Number)
 	}
-	if block.Data.Hash != "0x58e72ae0b02c13575f9124ed304cea92c1cfc8c9f8ed905d3bb2b57028a1e123" {
+	if block.Data.Hash.Hex() != "0x58e72ae0b02c13575f9124ed304cea92c1cfc8c9f8ed905d3bb2b57028a1e123" {
 		t.Errorf("Hash = %s", block.Data.Hash)
 	}
-	if block.Data.Miner != "0xf8b483dba2c3b7176a3da549ad41a48bb3121069" {
+	if block.Data.Miner.Hex() != "0xf8b483dba2c3b7176a3da549ad41a48bb3121069" {
 		t.Errorf("Miner = %s", block.Data.Miner)
 	}
-	if block.Data.GasUsed != 0 {
-		t.Errorf("GasUsed = %d, want 0", block.Data.GasUsed)
+	if block.Data.GasUsed.Uint64() != 0 {
+		t.Errorf("GasUsed = %d, want 0", block.Data.GasUsed.Uint64())
 	}
-	if block.Data.GasLimit != 0x2fefd8 {
-		t.Errorf("GasLimit = 0x%x, want 0x2fefd8", block.Data.GasLimit)
+	if block.Data.GasLimit.Uint64() != 0x2fefd8 {
+		t.Errorf("GasLimit = 0x%x, want 0x2fefd8", block.Data.GasLimit.Uint64())
 	}
 	if len(block.Data.Transactions) != 0 {
 		t.Errorf("Transactions count = %d, want 0", len(block.Data.Transactions))
@@ -100,11 +101,11 @@ func TestNewBlockFromRPC_WithTX(t *testing.T) {
 	if block.Number != 0x1a33b7 {
 		t.Errorf("Number = %d (0x%x), want 1717175 (0x1a33b7)", block.Number, block.Number)
 	}
-	if block.Data.Hash != "0x463b405b6b89683dd05956aaed190b3ab63c2d0efdbf1a99c5cd9f5aaeab11fc" {
+	if block.Data.Hash.Hex() != "0x463b405b6b89683dd05956aaed190b3ab63c2d0efdbf1a99c5cd9f5aaeab11fc" {
 		t.Errorf("Hash = %s", block.Data.Hash)
 	}
-	if block.Data.GasUsed != 0x63003 {
-		t.Errorf("GasUsed = 0x%x, want 0x63003", block.Data.GasUsed)
+	if block.Data.GasUsed.Uint64() != 0x63003 {
+		t.Errorf("GasUsed = 0x%x, want 0x63003", block.Data.GasUsed.Uint64())
 	}
 
 	if len(block.Data.Transactions) != 9 {
@@ -112,21 +113,21 @@ func TestNewBlockFromRPC_WithTX(t *testing.T) {
 	}
 
 	firstTx := block.Data.Transactions[0]
-	if firstTx.Hash != "0xc2c239e7c20fd3b5dccfc42e91bd4ae4a68727cfe184af3ea1ad7824cc13a686" {
+	if firstTx.Hash.Hex() != "0xc2c239e7c20fd3b5dccfc42e91bd4ae4a68727cfe184af3ea1ad7824cc13a686" {
 		t.Errorf("first tx hash = %s", firstTx.Hash)
 	}
-	if firstTx.From != "0xfbe26da0e985087d28228defbdaa394713b0865f" {
+	if firstTx.From.Hex() != "0xfbe26da0e985087d28228defbdaa394713b0865f" {
 		t.Errorf("first tx from = %s", firstTx.From)
 	}
-	if firstTx.To != "0xfb110ca742c3e47ab3babf4d48624c33891f35c6" {
+	if firstTx.To.Hex() != "0xfb110ca742c3e47ab3babf4d48624c33891f35c6" {
 		t.Errorf("first tx to = %v", firstTx.To)
 	}
-	if firstTx.Gas != 0x5208 {
-		t.Errorf("first tx gas = 0x%x, want 0x5208", firstTx.Gas)
+	if firstTx.Gas.Uint64() != 0x5208 {
+		t.Errorf("first tx gas = 0x%x, want 0x5208", firstTx.Gas.Uint64())
 	}
 
 	lastTx := block.Data.Transactions[8]
-	if lastTx.Input != "0x667a2f58" {
+	if lastTx.Input.Hex() != "0x667a2f58" {
 		t.Errorf("last tx input = %s, want 0x667a2f58", lastTx.Input)
 	}
 }
@@ -158,23 +159,23 @@ func TestNewTransactionFromRPC(t *testing.T) {
 
 	tx := NewTransactionFromRPC(rpcTx)
 
-	if tx.Hash != "0xc2c239e7c20fd3b5dccfc42e91bd4ae4a68727cfe184af3ea1ad7824cc13a686" {
+	if tx.Hash.Hex() != "0xc2c239e7c20fd3b5dccfc42e91bd4ae4a68727cfe184af3ea1ad7824cc13a686" {
 		t.Errorf("hash = %s", tx.Hash)
 	}
-	if tx.BlockNumber != 0x1a33b7 {
-		t.Errorf("blockNumber = %d, want 0x1a33b7", tx.BlockNumber)
+	if tx.BlockNumber.Uint64() != 0x1a33b7 {
+		t.Errorf("blockNumber = %d, want 0x1a33b7", tx.BlockNumber.Uint64())
 	}
-	if tx.From != "0xfbe26da0e985087d28228defbdaa394713b0865f" {
+	if tx.From.Hex() != "0xfbe26da0e985087d28228defbdaa394713b0865f" {
 		t.Errorf("from = %s", tx.From)
 	}
-	if tx.To != "0xfb110ca742c3e47ab3babf4d48624c33891f35c6" {
+	if tx.To.Hex() != "0xfb110ca742c3e47ab3babf4d48624c33891f35c6" {
 		t.Errorf("to = %v", tx.To)
 	}
-	if tx.Gas != 0x5208 {
-		t.Errorf("gas = 0x%x, want 0x5208", tx.Gas)
+	if tx.Gas.Uint64() != 0x5208 {
+		t.Errorf("gas = 0x%x, want 0x5208", tx.Gas.Uint64())
 	}
-	if tx.Index != 0 {
-		t.Errorf("index = %d, want 0", tx.Index)
+	if tx.Index.Uint64() != 0 {
+		t.Errorf("index = %d, want 0", tx.Index.Uint64())
 	}
 }
 
@@ -296,7 +297,7 @@ func TestInsertAndGetBlock_WithTransactions(t *testing.T) {
 	if len(fetched.Data.Transactions) != 9 {
 		t.Errorf("Transactions count = %d, want 9", len(fetched.Data.Transactions))
 	}
-	if fetched.Data.Transactions[0].Hash != "0xc2c239e7c20fd3b5dccfc42e91bd4ae4a68727cfe184af3ea1ad7824cc13a686" {
+	if fetched.Data.Transactions[0].Hash.Hex() != "0xc2c239e7c20fd3b5dccfc42e91bd4ae4a68727cfe184af3ea1ad7824cc13a686" {
 		t.Errorf("first tx hash = %s", fetched.Data.Transactions[0].Hash)
 	}
 }
@@ -398,6 +399,44 @@ func TestInsertRawBlock(t *testing.T) {
 	}
 }
 
+func TestInsertRawBlockAndGetBlock(t *testing.T) {
+	dbc := newTestDbContext(t)
+	ctx := context.Background()
+
+	raws := loadJson(t, "blocks.json")
+	raw := raws["0x42957"]
+
+	if err := dbc.InsertRawBlock(ctx, raw); err != nil {
+		t.Fatalf("InsertRawBlock: %v", err)
+	}
+
+	fetched, err := dbc.GetBlock(ctx, 272727)
+	if err != nil {
+		t.Fatalf("GetBlock: %v", err)
+	}
+	if fetched == nil {
+		t.Fatal("expected non-nil block")
+	}
+	if fetched.ID != "272727" {
+		t.Errorf("ID = %s, want 272727", fetched.ID)
+	}
+	if fetched.Number != 0x42957 {
+		t.Errorf("Number = %d, want 0x42957", fetched.Number)
+	}
+	if fetched.Data.Hash.Hex() != "0x58e72ae0b02c13575f9124ed304cea92c1cfc8c9f8ed905d3bb2b57028a1e123" {
+		t.Errorf("Hash = %s", fetched.Data.Hash)
+	}
+	if fetched.Data.Miner.Hex() != "0xf8b483dba2c3b7176a3da549ad41a48bb3121069" {
+		t.Errorf("Miner = %s", fetched.Data.Miner)
+	}
+	if fetched.Data.GasUsed.Uint64() != 0 {
+		t.Errorf("GasUsed = %d, want 0", fetched.Data.GasUsed.Uint64())
+	}
+	if len(fetched.Data.Transactions) != 0 {
+		t.Errorf("Transactions count = %d, want 0", len(fetched.Data.Transactions))
+	}
+}
+
 func TestInsertRawBlock_Duplicate(t *testing.T) {
 	dbc := newTestDbContext(t)
 	ctx := context.Background()
@@ -432,7 +471,9 @@ func TestUpsertBlock(t *testing.T) {
 		t.Fatalf("UpsertBlock first: %v", err)
 	}
 
-	block.Data.Hash = "0xmodified"
+	modifiedHash := core.Bytes32{}
+	copy(modifiedHash[:], []byte("modified"))
+	block.Data.Hash = modifiedHash
 	time.Sleep(10 * time.Millisecond)
 	if err := dbc.UpsertBlock(ctx, block); err != nil {
 		t.Fatalf("UpsertBlock second: %v", err)
@@ -442,7 +483,7 @@ func TestUpsertBlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBlock: %v", err)
 	}
-	if fetched.Data.Hash != "0xmodified" {
+	if fetched.Data.Hash.Hex() != modifiedHash.Hex() {
 		t.Errorf("Hash = %s, want 0xmodified", fetched.Data.Hash)
 	}
 
@@ -602,4 +643,3 @@ func newTestDbContext(t *testing.T) *DbContext {
 
 	return dbc
 }
-

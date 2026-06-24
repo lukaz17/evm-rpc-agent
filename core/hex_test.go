@@ -17,157 +17,40 @@
 package core
 
 import (
+	"bytes"
 	"math/big"
 	"testing"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-func TestBytes_Getters(t *testing.T) {
-	h := Bytes{0xff, 0x00, 0xab}
-
-	b := h.Bytes()
-	if len(b) != 3 || b[0] != 0xff {
-		t.Errorf("Bytes mismatch: %v", b)
-	}
-
-	if h.Hex() != "0xff00ab" {
-		t.Errorf("expected 0xff00ab, got %s", h.Hex())
-	}
-
-	if h.String() != "0xff00ab" {
-		t.Errorf("expected String to match Hex: %s", h.String())
-	}
-}
-
-func TestBytes_MarshalJSON(t *testing.T) {
-	tests := []struct {
-		name     string
-		hex      Bytes
-		expected string
-	}{
-		{"empty", nil, `"0x"`},
-		{"zero", Bytes{}, `"0x"`},
-		{"value", Bytes{0x12, 0xab}, `"0x12ab"`},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			data, err := tt.hex.MarshalJSON()
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if string(data) != tt.expected {
-				t.Errorf("expected %s, got %s", tt.expected, string(data))
-			}
-		})
-	}
-}
-
-func TestBytes_UnmarshalJSON(t *testing.T) {
+func TestNewAddressFromString(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected Bytes
+		expected Address
 		wantErr  bool
 	}{
-		{"empty", `"0x"`, nil, false},
-		{"value", `"0x12ab"`, Bytes{0x12, 0xab}, false},
-		{"no prefix", `"12ab"`, Bytes{0x12, 0xab}, false},
+		{"empty", "", ZeroAddress, false},
+		{"0x_prefix_only", "0x", ZeroAddress, false},
+		{"valid_with_0x", "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae", Address{0xde, 0x0b, 0x29, 0x56, 0x69, 0xa9, 0xfd, 0x93, 0xd5, 0xf2, 0x8d, 0x9e, 0xc8, 0x5e, 0x40, 0xf4, 0xcb, 0x69, 0x7b, 0xae}, false},
+		{"valid_without_0x", "de0b295669a9fd93d5f28d9ec85e40f4cb697bae", Address{0xde, 0x0b, 0x29, 0x56, 0x69, 0xa9, 0xfd, 0x93, 0xd5, 0xf2, 0x8d, 0x9e, 0xc8, 0x5e, 0x40, 0xf4, 0xcb, 0x69, 0x7b, 0xae}, false},
+		{"uppercase", "0xDE0B295669A9FD93D5F28D9EC85E40F4CB697BAE", Address{0xde, 0x0b, 0x29, 0x56, 0x69, 0xa9, 0xfd, 0x93, 0xd5, 0xf2, 0x8d, 0x9e, 0xc8, 0x5e, 0x40, 0xf4, 0xcb, 0x69, 0x7b, 0xae}, false},
+		{"zero_address", "0x0000000000000000000000000000000000000000", ZeroAddress, false},
+		{"too_short", "0xde0b295669a9fd93d5f28d9ec85e40f4cb697ba", ZeroAddress, true},
+		{"too_long", "0xde0b295669a9fd93d5f28d9ec85e40f4cb697baee", ZeroAddress, true},
+		{"invalid_hex", "0xGG0B295669A9FD93D5F28D9EC85E40F4CB697BAE", ZeroAddress, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var h Bytes
-			err := h.UnmarshalJSON([]byte(tt.input))
+			result, err := NewAddressFromString(tt.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("unexpected error state: err=%v", err)
 				return
 			}
-			if string(h) != string(tt.expected) && !(h == nil && tt.expected == nil) {
-				t.Errorf("expected %v, got %v", tt.expected, h)
-			}
-		})
-	}
-}
-
-func TestInteger_Getters(t *testing.T) {
-	tests := []struct {
-		name       string
-		value      Integer
-		wantBigInt *big.Int
-		wantHex    string
-		wantUint64 uint64
-	}{
-		{"zero", Integer{}, big.NewInt(0), "0x0", uint64(0)},
-		{"value_ff00ab", Integer(*big.NewInt(0xff00ab)), big.NewInt(0xff00ab), "0xff00ab", uint64(0xff00ab)},
-		{"max_uint64", Integer(*new(big.Int).SetUint64(0xffffffffffffffff)), new(big.Int).SetUint64(0xffffffffffffffff), "0xffffffffffffffff", uint64(0xffffffffffffffff)},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.value.Hex(); got != tt.wantHex {
-				t.Errorf("Integer.Hex() = %s, want %s", got, tt.wantHex)
-			}
-			if got := tt.value.String(); got != tt.wantHex {
-				t.Errorf("Integer.String() = %s, want %s", got, tt.wantHex)
-			}
-			if got := tt.value.Uint64(); got != tt.wantUint64 {
-				t.Errorf("Integer.Uint64() = 0x%x, want 0x%x", got, tt.wantUint64)
-			}
-			if got := tt.value.Int(); got.Cmp(tt.wantBigInt) != 0 {
-				t.Errorf("Integer.Int() = %s, want %s", got.String(), tt.wantBigInt.String())
-			}
-		})
-	}
-}
-
-func TestInteger_MarshalJSON(t *testing.T) {
-	tests := []struct {
-		name     string
-		hex      Integer
-		expected string
-	}{
-		{"zero", Integer{}, `"0x0"`},
-		{"value_12ab", Integer(*big.NewInt(0x12ab)), `"0x12ab"`},
-		{"large_value", Integer(*new(big.Int).SetUint64(0xffffffffffffffff)), `"0xffffffffffffffff"`},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			data, err := tt.hex.MarshalJSON()
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if string(data) != tt.expected {
-				t.Errorf("expected %s, got %s", tt.expected, string(data))
-			}
-		})
-	}
-}
-
-func TestInteger_UnmarshalJSON(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected Integer
-		wantErr  bool
-	}{
-		{"zero", `"0x0"`, Integer{}, false},
-		{"empty_0x", `"0x"`, Integer{}, false},
-		{"value_12ab", `"0x12ab"`, Integer(*big.NewInt(0x12ab)), false},
-		{"no prefix (decimal)", `"43981"`, Integer(*big.NewInt(0xabcd)), false},
-		{"large_value", `"0xffffffffffffffff"`, Integer(*new(big.Int).SetUint64(0xffffffffffffffff)), false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var h Integer
-			err := h.UnmarshalJSON([]byte(tt.input))
-			if (err != nil) != tt.wantErr {
-				t.Errorf("unexpected error state: err=%v", err)
-				return
-			}
-			if h.Int().Cmp(tt.expected.Int()) != 0 {
-				t.Errorf("expected %s, got %s", tt.expected.Hex(), h.Hex())
+			if result != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected.Hex(), result.Hex())
 			}
 		})
 	}
@@ -283,34 +166,80 @@ func TestAddress_UnmarshalJSON(t *testing.T) {
 	}
 }
 
-func TestDecodeAddress(t *testing.T) {
+func TestAddress_MarshalBSONValue(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    string
-		expected Address
-		wantErr  bool
+		addr     Address
+		wantType byte
 	}{
-		{"valid address", "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae", Address{0xde, 0x0b, 0x29, 0x56, 0x69, 0xa9, 0xfd, 0x93, 0xd5, 0xf2, 0x8d, 0x9e, 0xc8, 0x5e, 0x40, 0xf4, 0xcb, 0x69, 0x7b, 0xae}, false},
-		{"no prefix", "de0b295669a9fd93d5f28d9ec85e40f4cb697bae", Address{0xde, 0x0b, 0x29, 0x56, 0x69, 0xa9, 0xfd, 0x93, 0xd5, 0xf2, 0x8d, 0x9e, 0xc8, 0x5e, 0x40, 0xf4, 0xcb, 0x69, 0x7b, 0xae}, false},
-		{"zero address", "0x0000000000000000000000000000000000000000", ZeroAddress, false},
-		{"empty string", "", ZeroAddress, false},
-		{"0x only", "0x", ZeroAddress, false},
-		{"too short", "0xde0b295669a9fd93d5f28d9ec85e40f4cb697b", ZeroAddress, true},
-		{"too long", "0xde0b295669a9fd93d5f28d9ec85e40f4cb697baeff", ZeroAddress, true},
-		{"invalid hex", "0xgg0b295669a9fd93d5f28d9ec85e40f4cb697bae", ZeroAddress, true},
+		{"zero", ZeroAddress, byte(bson.TypeString)},
+		{"full_address", Address{0xde, 0x0b, 0x29, 0x56, 0x69, 0xa9, 0xfd, 0x93, 0xd5, 0xf2, 0x8d, 0x9e, 0xc8, 0x5e, 0x40, 0xf4, 0xcb, 0x69, 0x7b, 0xae}, byte(bson.TypeString)},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := decodeAddress(tt.input)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("unexpected error state: err=%v", err)
-				return
+			typ, data, err := tt.addr.MarshalBSONValue()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
-			if result != tt.expected {
-				t.Errorf("expected %s, got %s", tt.expected.Hex(), result.Hex())
+			if typ != tt.wantType {
+				t.Errorf("expected BSON type %v, got %v", tt.wantType, typ)
+			}
+			if len(data) == 0 {
+				t.Error("expected non-empty BSON data")
 			}
 		})
+	}
+}
+
+func TestAddress_UnmarshalBSONValue(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   Address
+		wantErr bool
+	}{
+		{"zero", ZeroAddress, false},
+		{"full_address", Address{0xde, 0x0b, 0x29, 0x56, 0x69, 0xa9, 0xfd, 0x93, 0xd5, 0xf2, 0x8d, 0x9e, 0xc8, 0x5e, 0x40, 0xf4, 0xcb, 0x69, 0x7b, 0xae}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			typ, data, err := tt.input.MarshalBSONValue()
+			if err != nil {
+				t.Fatalf("MarshalBSONValue error: %v", err)
+			}
+			var got Address
+			if err := got.UnmarshalBSONValue(typ, data); err != nil {
+				if tt.wantErr {
+					return
+				}
+				t.Fatalf("UnmarshalBSONValue error: %v", err)
+			}
+			if got != tt.input {
+				t.Errorf("roundtrip mismatch: got %s, want %s", got.Hex(), tt.input.Hex())
+			}
+		})
+	}
+}
+
+func TestAddress_BSONRoundtrip(t *testing.T) {
+	type doc struct {
+		Addr Address `bson:"addr"`
+	}
+	original := doc{Addr: Address{0xde, 0x0b, 0x29, 0x56, 0x69, 0xa9, 0xfd, 0x93, 0xd5, 0xf2, 0x8d, 0x9e, 0xc8, 0x5e, 0x40, 0xf4, 0xcb, 0x69, 0x7b, 0xae}}
+
+	data, err := bson.Marshal(original)
+	if err != nil {
+		t.Fatalf("bson.Marshal error: %v", err)
+	}
+
+	var result doc
+	if err := bson.Unmarshal(data, &result); err != nil {
+		t.Fatalf("bson.Unmarshal error: %v", err)
+	}
+
+	if result.Addr != original.Addr {
+		t.Errorf("roundtrip mismatch: got %s, want %s", result.Addr.Hex(), original.Addr.Hex())
 	}
 }
 
@@ -318,6 +247,196 @@ func TestAddress_ZeroAddress(t *testing.T) {
 	addr := ZeroAddress
 	if addr.Hex() != "0x0000000000000000000000000000000000000000" {
 		t.Errorf("expected zero address hex, got %s", addr.Hex())
+	}
+}
+
+func TestNewBytesFromString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected Bytes
+		wantErr  bool
+	}{
+		{"empty", "", nil, false},
+		{"0x_prefix_only", "0x", nil, false},
+		{"with_0x", "0x12ab", Bytes{0x12, 0xab}, false},
+		{"without_0x", "12ab", Bytes{0x12, 0xab}, false},
+		{"odd_length", "0x123", Bytes{0x01, 0x23}, false},
+		{"invalid_hex", "0xGG", nil, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := NewBytesFromString(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("unexpected error state: err=%v", err)
+				return
+			}
+			if !bytes.Equal(result, tt.expected) {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestBytes_Getters(t *testing.T) {
+	h := Bytes{0xff, 0x00, 0xab}
+
+	b := h.Bytes()
+	if len(b) != 3 || b[0] != 0xff {
+		t.Errorf("Bytes mismatch: %v", b)
+	}
+
+	if h.Hex() != "0xff00ab" {
+		t.Errorf("expected 0xff00ab, got %s", h.Hex())
+	}
+
+	if h.String() != "0xff00ab" {
+		t.Errorf("expected String to match Hex: %s", h.String())
+	}
+}
+
+func TestBytes_MarshalJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		hex      Bytes
+		expected string
+	}{
+		{"empty", nil, `"0x"`},
+		{"zero", Bytes{}, `"0x"`},
+		{"value", Bytes{0x12, 0xab}, `"0x12ab"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := tt.hex.MarshalJSON()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if string(data) != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, string(data))
+			}
+		})
+	}
+}
+
+func TestBytes_UnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected Bytes
+		wantErr  bool
+	}{
+		{"empty", `"0x"`, nil, false},
+		{"value", `"0x12ab"`, Bytes{0x12, 0xab}, false},
+		{"no prefix", `"12ab"`, Bytes{0x12, 0xab}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var h Bytes
+			err := h.UnmarshalJSON([]byte(tt.input))
+			if (err != nil) != tt.wantErr {
+				t.Errorf("unexpected error state: err=%v", err)
+				return
+			}
+			if string(h) != string(tt.expected) && !(h == nil && tt.expected == nil) {
+				t.Errorf("expected %v, got %v", tt.expected, h)
+			}
+		})
+	}
+}
+
+func TestBytes_MarshalBSONValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		b        Bytes
+		wantType byte
+		wantNull bool
+	}{
+		{"nil", nil, byte(bson.TypeNull), true},
+		{"empty", Bytes{}, byte(bson.TypeNull), true},
+		{"value", Bytes{0x12, 0xab}, byte(bson.TypeString), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			typ, data, err := tt.b.MarshalBSONValue()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantNull {
+				if typ != byte(bson.TypeNull) {
+					t.Errorf("expected TypeNull, got %v", typ)
+				}
+				if data != nil {
+					t.Errorf("expected nil data for null, got %v", data)
+				}
+			} else {
+				if typ != tt.wantType {
+					t.Errorf("expected BSON type %v, got %v", tt.wantType, typ)
+				}
+				if len(data) == 0 {
+					t.Error("expected non-empty BSON data")
+				}
+			}
+		})
+	}
+}
+
+func TestBytes_UnmarshalBSONValue(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   Bytes
+		wantNil bool
+	}{
+		{"nil (null)", nil, true},
+		{"empty (null)", Bytes{}, true},
+		{"value", Bytes{0x12, 0xab}, false},
+		{"longer value", Bytes{0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			typ, data, err := tt.input.MarshalBSONValue()
+			if err != nil {
+				t.Fatalf("MarshalBSONValue error: %v", err)
+			}
+			var got Bytes
+			if err := got.UnmarshalBSONValue(typ, data); err != nil {
+				t.Fatalf("UnmarshalBSONValue error: %v", err)
+			}
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("expected nil Bytes, got %v", got)
+				}
+			} else {
+				if !bytes.Equal(got, tt.input) {
+					t.Errorf("roundtrip mismatch: got %s, want %s", got.Hex(), tt.input.Hex())
+				}
+			}
+		})
+	}
+}
+
+func TestBytes_BSONRoundtrip(t *testing.T) {
+	type doc struct {
+		Data Bytes `bson:"data"`
+	}
+	original := doc{Data: Bytes{0xde, 0xad, 0xbe, 0xef}}
+
+	data, err := bson.Marshal(original)
+	if err != nil {
+		t.Fatalf("bson.Marshal error: %v", err)
+	}
+
+	var result doc
+	if err := bson.Unmarshal(data, &result); err != nil {
+		t.Fatalf("bson.Unmarshal error: %v", err)
+	}
+
+	if !bytes.Equal(result.Data, original.Data) {
+		t.Errorf("roundtrip mismatch: got %s, want %s", result.Data.Hex(), original.Data.Hex())
 	}
 }
 
@@ -457,6 +576,325 @@ func TestBytes32_UnmarshalJSON(t *testing.T) {
 	}
 }
 
+func TestBytes32_MarshalBSONValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		b32      Bytes32
+		wantType byte
+	}{
+		{"zero", ZeroBytes32, byte(bson.TypeString)},
+		{"full_value", Bytes32{0xdf, 0x88, 0xd4, 0xe5, 0x52, 0xed, 0x2e, 0x9a, 0xff, 0xc3, 0xec, 0x61, 0xde, 0xce, 0x4c, 0x69, 0xe1, 0x6d, 0x88, 0x4f, 0x6d, 0xd5, 0xd0, 0x63, 0xe5, 0x39, 0x79, 0x60, 0x55, 0xfc, 0x3b, 0x06}, byte(bson.TypeString)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			typ, data, err := tt.b32.MarshalBSONValue()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if typ != tt.wantType {
+				t.Errorf("expected BSON type %v, got %v", tt.wantType, typ)
+			}
+			if len(data) == 0 {
+				t.Error("expected non-empty BSON data")
+			}
+		})
+	}
+}
+
+func TestBytes32_UnmarshalBSONValue(t *testing.T) {
+	tests := []struct {
+		name  string
+		input Bytes32
+	}{
+		{"zero", ZeroBytes32},
+		{"full_value", Bytes32{0xdf, 0x88, 0xd4, 0xe5, 0x52, 0xed, 0x2e, 0x9a, 0xff, 0xc3, 0xec, 0x61, 0xde, 0xce, 0x4c, 0x69, 0xe1, 0x6d, 0x88, 0x4f, 0x6d, 0xd5, 0xd0, 0x63, 0xe5, 0x39, 0x79, 0x60, 0x55, 0xfc, 0x3b, 0x06}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			typ, data, err := tt.input.MarshalBSONValue()
+			if err != nil {
+				t.Fatalf("MarshalBSONValue error: %v", err)
+			}
+			var got Bytes32
+			if err := got.UnmarshalBSONValue(typ, data); err != nil {
+				t.Fatalf("UnmarshalBSONValue error: %v", err)
+			}
+			if got != tt.input {
+				t.Errorf("roundtrip mismatch: got %s, want %s", got.Hex(), tt.input.Hex())
+			}
+		})
+	}
+}
+
+func TestBytes32_BSONRoundtrip(t *testing.T) {
+	type doc struct {
+		Hash Bytes32 `bson:"hash"`
+	}
+	original := doc{Hash: Bytes32{0xdf, 0x88, 0xd4, 0xe5, 0x52, 0xed, 0x2e, 0x9a, 0xff, 0xc3, 0xec, 0x61, 0xde, 0xce, 0x4c, 0x69, 0xe1, 0x6d, 0x88, 0x4f, 0x6d, 0xd5, 0xd0, 0x63, 0xe5, 0x39, 0x79, 0x60, 0x55, 0xfc, 0x3b, 0x06}}
+
+	data, err := bson.Marshal(original)
+	if err != nil {
+		t.Fatalf("bson.Marshal error: %v", err)
+	}
+
+	var result doc
+	if err := bson.Unmarshal(data, &result); err != nil {
+		t.Fatalf("bson.Unmarshal error: %v", err)
+	}
+
+	if result.Hash != original.Hash {
+		t.Errorf("roundtrip mismatch: got %s, want %s", result.Hash.Hex(), original.Hash.Hex())
+	}
+}
+
+func TestBytes32_ZeroBytes32(t *testing.T) {
+	b32 := ZeroBytes32
+	if b32.Hex() != "0x0000000000000000000000000000000000000000000000000000000000000000" {
+		t.Errorf("expected zero bytes32 hex, got %s", b32.Hex())
+	}
+}
+
+func TestNewIntegerFromString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected Integer
+		wantErr  bool
+	}{
+		{"empty", "", Integer{}, false},
+		{"0x_prefix_only", "0x", Integer{}, false},
+		{"hex_0x12ab", "0x12ab", Integer(*big.NewInt(0x12ab)), false},
+		{"decimal_43981", "43981", Integer(*big.NewInt(0xabcd)), false},
+		{"large_hex", "0xffffffffffffffff", Integer(*new(big.Int).SetUint64(0xffffffffffffffff)), false},
+		{"invalid", "0xGG", Integer{}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := NewIntegerFromString(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("unexpected error state: err=%v", err)
+				return
+			}
+			if result.Int().Cmp(tt.expected.Int()) != 0 {
+				t.Errorf("expected %s, got %s", tt.expected.Hex(), result.Hex())
+			}
+		})
+	}
+}
+
+func TestInteger_Getters(t *testing.T) {
+	tests := []struct {
+		name       string
+		value      Integer
+		wantBigInt *big.Int
+		wantHex    string
+		wantUint64 uint64
+	}{
+		{"zero", Integer{}, big.NewInt(0), "0x0", uint64(0)},
+		{"value_ff00ab", Integer(*big.NewInt(0xff00ab)), big.NewInt(0xff00ab), "0xff00ab", uint64(0xff00ab)},
+		{"max_uint64", Integer(*new(big.Int).SetUint64(0xffffffffffffffff)), new(big.Int).SetUint64(0xffffffffffffffff), "0xffffffffffffffff", uint64(0xffffffffffffffff)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.value.Hex(); got != tt.wantHex {
+				t.Errorf("Integer.Hex() = %s, want %s", got, tt.wantHex)
+			}
+			if got := tt.value.String(); got != tt.wantHex {
+				t.Errorf("Integer.String() = %s, want %s", got, tt.wantHex)
+			}
+			if got := tt.value.Uint64(); got != tt.wantUint64 {
+				t.Errorf("Integer.Uint64() = 0x%x, want 0x%x", got, tt.wantUint64)
+			}
+			if got := tt.value.Int(); got.Cmp(tt.wantBigInt) != 0 {
+				t.Errorf("Integer.Int() = %s, want %s", got.String(), tt.wantBigInt.String())
+			}
+		})
+	}
+}
+
+func TestInteger_MarshalJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		hex      Integer
+		expected string
+	}{
+		{"zero", Integer{}, `"0x0"`},
+		{"value_12ab", Integer(*big.NewInt(0x12ab)), `"0x12ab"`},
+		{"large_value", Integer(*new(big.Int).SetUint64(0xffffffffffffffff)), `"0xffffffffffffffff"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := tt.hex.MarshalJSON()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if string(data) != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, string(data))
+			}
+		})
+	}
+}
+
+func TestInteger_UnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected Integer
+		wantErr  bool
+	}{
+		{"zero", `"0x0"`, Integer{}, false},
+		{"empty_0x", `"0x"`, Integer{}, false},
+		{"value_12ab", `"0x12ab"`, Integer(*big.NewInt(0x12ab)), false},
+		{"no prefix (decimal)", `"43981"`, Integer(*big.NewInt(0xabcd)), false},
+		{"large_value", `"0xffffffffffffffff"`, Integer(*new(big.Int).SetUint64(0xffffffffffffffff)), false},
+		{"numeric_zero", `0`, Integer{}, false},
+		{"numeric_positive", `12345`, Integer(*big.NewInt(12345)), false},
+		{"numeric_large", `18446744073709551615`, Integer(*new(big.Int).SetUint64(0xffffffffffffffff)), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var h Integer
+			err := h.UnmarshalJSON([]byte(tt.input))
+			if (err != nil) != tt.wantErr {
+				t.Errorf("unexpected error state: err=%v", err)
+				return
+			}
+			if h.Int().Cmp(tt.expected.Int()) != 0 {
+				t.Errorf("expected %s, got %s", tt.expected.Hex(), h.Hex())
+			}
+		})
+	}
+}
+
+func TestInteger_MarshalBSONValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		val      Integer
+		wantType byte
+	}{
+		{"zero", Integer{}, byte(bson.TypeInt32)},
+		{"small_int32", Integer(*big.NewInt(255)), byte(bson.TypeInt64)},
+		{"max_uint64", Integer(*new(big.Int).SetUint64(0xffffffffffffffff)), byte(bson.TypeInt64)},
+		{"over_uint64", Integer(*new(big.Int).Lsh(big.NewInt(1), 65)), byte(bson.TypeString)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			typ, data, err := tt.val.MarshalBSONValue()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if typ != tt.wantType {
+				t.Errorf("expected BSON type %v, got %v", tt.wantType, typ)
+			}
+			_ = data
+		})
+	}
+}
+
+func TestInteger_UnmarshalBSONValue(t *testing.T) {
+	tests := []struct {
+		name  string
+		input Integer
+	}{
+		{"zero", Integer{}},
+		{"small_value", Integer(*big.NewInt(0x12ab))},
+		{"max_uint64", Integer(*new(big.Int).SetUint64(0xffffffffffffffff))},
+		{"over_uint64", Integer(*new(big.Int).Lsh(big.NewInt(1), 65))},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			typ, data, err := tt.input.MarshalBSONValue()
+			if err != nil {
+				t.Fatalf("MarshalBSONValue error: %v", err)
+			}
+			var got Integer
+			if err := got.UnmarshalBSONValue(typ, data); err != nil {
+				t.Fatalf("UnmarshalBSONValue error: %v", err)
+			}
+			if got.Int().Cmp(tt.input.Int()) != 0 {
+				t.Errorf("roundtrip mismatch: got %s, want %s", got.Hex(), tt.input.Hex())
+			}
+		})
+	}
+}
+
+func TestInteger_BSONRoundtrip(t *testing.T) {
+	type doc struct {
+		Value Integer `bson:"value"`
+	}
+
+	cases := []Integer{
+		{},
+		Integer(*big.NewInt(0xdeadbeef)),
+		Integer(*new(big.Int).SetUint64(0xffffffffffffffff)),
+		Integer(*new(big.Int).Lsh(big.NewInt(1), 65)),
+	}
+
+	for _, c := range cases {
+		original := doc{Value: c}
+		data, err := bson.Marshal(original)
+		if err != nil {
+			t.Fatalf("bson.Marshal error for %s: %v", c.Hex(), err)
+		}
+
+		var result doc
+		if err := bson.Unmarshal(data, &result); err != nil {
+			t.Fatalf("bson.Unmarshal error for %s: %v", c.Hex(), err)
+		}
+
+		if result.Value.Int().Cmp(original.Value.Int()) != 0 {
+			t.Errorf("roundtrip mismatch: got %s, want %s", result.Value.Hex(), original.Value.Hex())
+		}
+	}
+}
+
+func TestInteger_UnmarshalBSONValue_InvalidType(t *testing.T) {
+	var i Integer
+	err := i.UnmarshalBSONValue(byte(bson.TypeBoolean), []byte{0x01})
+	if err == nil {
+		t.Error("expected error for unsupported BSON type, got nil")
+	}
+}
+
+func TestDecodeAddress(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected Address
+		wantErr  bool
+	}{
+		{"valid address", "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae", Address{0xde, 0x0b, 0x29, 0x56, 0x69, 0xa9, 0xfd, 0x93, 0xd5, 0xf2, 0x8d, 0x9e, 0xc8, 0x5e, 0x40, 0xf4, 0xcb, 0x69, 0x7b, 0xae}, false},
+		{"no prefix", "de0b295669a9fd93d5f28d9ec85e40f4cb697bae", Address{0xde, 0x0b, 0x29, 0x56, 0x69, 0xa9, 0xfd, 0x93, 0xd5, 0xf2, 0x8d, 0x9e, 0xc8, 0x5e, 0x40, 0xf4, 0xcb, 0x69, 0x7b, 0xae}, false},
+		{"zero address", "0x0000000000000000000000000000000000000000", ZeroAddress, false},
+		{"empty string", "", ZeroAddress, false},
+		{"0x only", "0x", ZeroAddress, false},
+		{"too short", "0xde0b295669a9fd93d5f28d9ec85e40f4cb697b", ZeroAddress, true},
+		{"too long", "0xde0b295669a9fd93d5f28d9ec85e40f4cb697baeff", ZeroAddress, true},
+		{"invalid hex", "0xgg0b295669a9fd93d5f28d9ec85e40f4cb697bae", ZeroAddress, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := decodeAddress(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("unexpected error state: err=%v", err)
+				return
+			}
+			if result != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected.Hex(), result.Hex())
+			}
+		})
+	}
+}
+
 func TestDecodeBytes32(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -485,12 +923,5 @@ func TestDecodeBytes32(t *testing.T) {
 				t.Errorf("expected %s, got %s", tt.expected.Hex(), result.Hex())
 			}
 		})
-	}
-}
-
-func TestBytes32_ZeroBytes32(t *testing.T) {
-	b32 := ZeroBytes32
-	if b32.Hex() != "0x0000000000000000000000000000000000000000000000000000000000000000" {
-		t.Errorf("expected zero bytes32 hex, got %s", b32.Hex())
 	}
 }

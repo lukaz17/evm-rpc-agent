@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lukaz17/evm-rpc-agent/core"
 	"github.com/lukaz17/evm-rpc-agent/rpc"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -39,46 +40,46 @@ type Block struct {
 
 // BlockData represents an Ethereum block stored in MongoDB.
 type BlockData struct {
-	Number           uint64        `bson:"number"`
-	Time             uint64        `bson:"timestamp"`
-	Hash             string        `bson:"hash"`
-	Nonce            string        `bson:"nonce"`
-	Miner            string        `bson:"miner"`
-	Difficulty       string        `bson:"difficulty"`
-	TotalDifficulty  string        `bson:"totalDifficulty"`
-	Size             uint64        `bson:"size"`
-	GasUsed          uint64        `bson:"gasUsed"`
-	GasLimit         uint64        `bson:"gasLimit"`
-	Extra            string        `bson:"extraData"`
-	MixDigest        string        `bson:"mixHash"`
-	LogsBloom        string        `bson:"logsBloom"`
-	ParentHash       string        `bson:"parentHash"`
-	UncleHash        string        `bson:"sha3Uncles"`
-	TransactionsRoot string        `bson:"transactionsRoot"`
-	ReceiptsRoot     string        `bson:"receiptsRoot"`
-	StateRoot        string        `bson:"stateRoot"`
-	Transactions     []Transaction `bson:"transactions,omitempty"`
-	Uncles           []string      `bson:"uncles,omitempty"`
+	Number           core.Integer   `bson:"number"`
+	Time             core.Integer   `bson:"timestamp"`
+	Hash             core.Bytes32   `bson:"hash"`
+	Nonce            core.Integer   `bson:"nonce"`
+	Miner            core.Address   `bson:"miner"`
+	Difficulty       core.Integer   `bson:"difficulty"`
+	TotalDifficulty  core.Integer   `bson:"totalDifficulty"`
+	Size             core.Integer   `bson:"size"`
+	GasUsed          core.Integer   `bson:"gasUsed"`
+	GasLimit         core.Integer   `bson:"gasLimit"`
+	Extra            core.Bytes     `bson:"extraData"`
+	MixDigest        core.Bytes32   `bson:"mixHash"`
+	LogsBloom        core.Bytes     `bson:"logsBloom"`
+	ParentHash       core.Bytes32   `bson:"parentHash"`
+	UncleHash        core.Bytes32   `bson:"sha3Uncles"`
+	TransactionsRoot core.Bytes32   `bson:"transactionsRoot"`
+	ReceiptsRoot     core.Bytes32   `bson:"receiptsRoot"`
+	StateRoot        core.Bytes32   `bson:"stateRoot"`
+	Transactions     []Transaction  `bson:"transactions,omitempty"`
+	Uncles           []core.Bytes32 `bson:"uncles,omitempty"`
 }
 
 // Transaction represents an Ethereum transaction stored in MongoDB.
 type Transaction struct {
-	Hash        string `bson:"hash"`
-	BlockNumber uint64 `bson:"blockNumber"`
-	BlockHash   string `bson:"blockHash"`
-	BlockTime   uint64 `bson:"blockTimestamp"`
-	Nonce       string `bson:"nonce"`
-	Index       uint64 `bson:"transactionIndex"`
-	From        string `bson:"from"`
-	To          string `bson:"to"`
-	Value       string `bson:"value"`
-	Gas         uint64 `bson:"gas"`
-	GasPrice    string `bson:"gasPrice"`
-	Type        uint64 `bson:"type"`
-	Input       string `bson:"input"`
-	V           string `bson:"v"`
-	R           string `bson:"r"`
-	S           string `bson:"s"`
+	Hash        core.Bytes32 `bson:"hash"`
+	BlockNumber core.Integer `bson:"blockNumber"`
+	BlockHash   core.Bytes32 `bson:"blockHash"`
+	BlockTime   core.Integer `bson:"blockTimestamp"`
+	Nonce       core.Integer `bson:"nonce"`
+	Index       core.Integer `bson:"transactionIndex"`
+	From        core.Address `bson:"from"`
+	To          core.Address `bson:"to"`
+	Value       core.Integer `bson:"value"`
+	Gas         core.Integer `bson:"gas"`
+	GasPrice    core.Integer `bson:"gasPrice"`
+	Type        core.Integer `bson:"type"`
+	Input       core.Bytes   `bson:"input"`
+	V           core.Integer `bson:"v"`
+	R           core.Bytes   `bson:"r"`
+	S           core.Bytes   `bson:"s"`
 }
 
 // Return a BSON Block from RPC Block.
@@ -89,24 +90,24 @@ func NewBlockFromRPC(rpcBlock *rpc.Block) (*Block, error) {
 
 	blockNumber := rpcBlock.Number.Uint64()
 	data := &BlockData{
-		Number:           blockNumber,
-		Time:             rpcBlock.Time.Uint64(),
-		Hash:             rpcBlock.Hash.Hex(),
-		Nonce:            rpcBlock.Nonce.Hex(),
-		Miner:            rpcBlock.Coinbase.Hex(),
-		Difficulty:       rpcBlock.Difficulty.Hex(),
-		TotalDifficulty:  rpcBlock.TotalDifficulty.Hex(),
-		Size:             rpcBlock.Size.Uint64(),
-		GasUsed:          rpcBlock.GasUsed.Uint64(),
-		GasLimit:         rpcBlock.GasLimit.Uint64(),
-		Extra:            rpcBlock.Extra.Hex(),
-		MixDigest:        rpcBlock.MixDigest.Hex(),
-		LogsBloom:        rpcBlock.LogsBloom.Hex(),
-		ParentHash:       rpcBlock.ParentHash.Hex(),
-		UncleHash:        rpcBlock.UncleHash.Hex(),
-		TransactionsRoot: rpcBlock.TransactionsRoot.Hex(),
-		ReceiptsRoot:     rpcBlock.ReceiptsRoot.Hex(),
-		StateRoot:        rpcBlock.StateRoot.Hex(),
+		Number:           rpcBlock.Number,
+		Time:             rpcBlock.Time,
+		Hash:             rpcBlock.Hash,
+		Nonce:            rpcBlock.Nonce,
+		Miner:            rpcBlock.Coinbase,
+		Difficulty:       rpcBlock.Difficulty,
+		TotalDifficulty:  rpcBlock.TotalDifficulty,
+		Size:             rpcBlock.Size,
+		GasUsed:          rpcBlock.GasUsed,
+		GasLimit:         rpcBlock.GasLimit,
+		Extra:            rpcBlock.Extra,
+		MixDigest:        rpcBlock.MixDigest,
+		LogsBloom:        rpcBlock.LogsBloom,
+		ParentHash:       rpcBlock.ParentHash,
+		UncleHash:        rpcBlock.UncleHash,
+		TransactionsRoot: rpcBlock.TransactionsRoot,
+		ReceiptsRoot:     rpcBlock.ReceiptsRoot,
+		StateRoot:        rpcBlock.StateRoot,
 	}
 
 	txs, err := rpcBlock.TransactionsFull()
@@ -120,17 +121,14 @@ func NewBlockFromRPC(rpcBlock *rpc.Block) (*Block, error) {
 		if err == nil && len(hashes) > 0 {
 			data.Transactions = make([]Transaction, len(hashes))
 			for i, h := range hashes {
-				data.Transactions[i] = Transaction{Hash: h.Hex()}
+				data.Transactions[i] = Transaction{Hash: h}
 			}
 		}
 	}
 
 	uncles, err := rpcBlock.Uncles()
 	if err == nil && len(uncles) > 0 {
-		data.Uncles = make([]string, len(uncles))
-		for i, u := range uncles {
-			data.Uncles[i] = u.Hex()
-		}
+		data.Uncles = uncles
 	}
 
 	utcNow := time.Now().UTC()
@@ -146,22 +144,22 @@ func NewBlockFromRPC(rpcBlock *rpc.Block) (*Block, error) {
 // Return a BSON Transaction from RPC Transaction.
 func NewTransactionFromRPC(tx rpc.Transaction) Transaction {
 	return Transaction{
-		Hash:        tx.Hash.Hex(),
-		BlockNumber: tx.BlockNumber.Uint64(),
-		BlockHash:   tx.BlockHash.Hex(),
-		BlockTime:   tx.BlockTime.Uint64(),
-		Nonce:       tx.Nonce.Hex(),
-		Index:       tx.Index.Uint64(),
-		From:        tx.From.Hex(),
-		To:          tx.To.Hex(),
-		Value:       tx.Value.Hex(),
-		Gas:         tx.Gas.Uint64(),
-		GasPrice:    tx.GasPrice.Hex(),
-		Type:        tx.Type.Uint64(),
-		Input:       tx.Input.Hex(),
-		V:           tx.V.Hex(),
-		R:           tx.R.Hex(),
-		S:           tx.S.Hex(),
+		Hash:        tx.Hash,
+		BlockNumber: tx.BlockNumber,
+		BlockHash:   tx.BlockHash,
+		BlockTime:   tx.BlockTime,
+		Nonce:       tx.Nonce,
+		Index:       tx.Index,
+		From:        tx.From,
+		To:          tx.To,
+		Value:       tx.Value,
+		Gas:         tx.Gas,
+		GasPrice:    tx.GasPrice,
+		Type:        tx.Type,
+		Input:       tx.Input,
+		V:           tx.V,
+		R:           tx.R,
+		S:           tx.S,
 	}
 }
 
