@@ -18,6 +18,7 @@ package svc
 
 import (
 	"github.com/lukaz17/evm-rpc-agent/config"
+	"github.com/lukaz17/evm-rpc-agent/db"
 	"github.com/lukaz17/evm-rpc-agent/rpc"
 	"github.com/rs/zerolog"
 	"github.com/tforce-io/tf-golib/diag"
@@ -33,7 +34,7 @@ type Controller struct {
 }
 
 // Return new Controller instance.
-func NewController(cfg *config.ServiceConfig, rpc *rpc.Client, logger zerolog.Logger) *Controller {
+func NewController(cfg *config.ServiceConfig, rpc *rpc.Client, dbc *db.DbContext, logger zerolog.Logger) *Controller {
 	diagLogger := config.ZerologAdapter{Logger: logger}
 	router := multiplex.NewServiceController(diagLogger)
 
@@ -42,8 +43,17 @@ func NewController(cfg *config.ServiceConfig, rpc *rpc.Client, logger zerolog.Lo
 	callEthApiSvc.SetWorker(4)
 	router.Register(callEthApiSvc)
 
+	if dbc == nil {
+		diagLogger.Warn("Database services are not available.")
+	} else {
+		writeDatabaseSvc := NewWriteDatabase(dbc, logger)
+		writeDatabaseSvc.SetRouter(router)
+		writeDatabaseSvc.SetWorker(1)
+		router.Register(writeDatabaseSvc)
+	}
+
 	if rpc == nil {
-		diagLogger.Warn("RPC service are not available.")
+		diagLogger.Warn("RPC services are not available.")
 	} else {
 		histCallEthRpcSvc := NewCallEthRpc("HistCallEthRpc", rpc, cfg, logger)
 		histCallEthRpcSvc.SetRouter(router)

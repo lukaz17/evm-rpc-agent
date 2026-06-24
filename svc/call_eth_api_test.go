@@ -20,11 +20,7 @@ import (
 	"encoding/json"
 	"math/big"
 	"testing"
-	"time"
 
-	"github.com/lukaz17/evm-rpc-agent/config"
-	"github.com/lukaz17/evm-rpc-agent/rpc"
-	"github.com/rs/zerolog"
 	"github.com/tforce-io/tf-golib/multiplex"
 )
 
@@ -36,26 +32,13 @@ func TestCallEthApi_GetBlocks(t *testing.T) {
 		big.NewInt(2727),
 	}
 
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: &nullWriter{}, TimeFormat: time.DateTime}).
-		With().
-		Timestamp().
-		Logger()
-	rpcClient := rpc.NewClient(rpcEndpoint)
-
-	cfg := &config.ServiceConfig{
-		MaxRpcRrtryCount:         3,
-		HistoricalApiWorkerCount: 1,
-		StandardApiWorkerCount:   1,
-	}
-	ctrl := NewController(cfg, rpcClient, logger)
-	go ctrl.Run()
-
-	params := multiplex.ExecParams{
+	ctrl := newTestController(t, nil)
+	msg := multiplex.ExecParams{
 		"block_numbers": blockNumbers,
 	}
-	ctrl.DispatchOnce("CallEthApi", "get_blocks", params)
+	ctrl.DispatchOnce("CallEthApi", "get_blocks", msg)
 
-	result, ok := params.ReturnResult().(*CallEthApiResult)
+	result, ok := msg.ReturnResult().(*CallEthApiResult)
 	if !ok {
 		t.Fatalf("result is not *CallEthApiResult, got %T", result)
 	}
@@ -105,27 +88,14 @@ func TestCallEthApi_GetBlocksRange(t *testing.T) {
 	toBlock := big.NewInt(117)
 	expectedCount := int(toBlock.Int64()-fromBlock.Int64()) + 1
 
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: &nullWriter{}, TimeFormat: time.DateTime}).
-		With().
-		Timestamp().
-		Logger()
-	rpcClient := rpc.NewClient(rpcEndpoint)
-
-	cfg := &config.ServiceConfig{
-		MaxRpcRrtryCount:         3,
-		HistoricalApiWorkerCount: 1,
-		StandardApiWorkerCount:   1,
-	}
-	ctrl := NewController(cfg, rpcClient, logger)
-	go ctrl.Run()
-
-	params := multiplex.ExecParams{
+	ctrl := newTestController(t, nil)
+	msg := multiplex.ExecParams{
 		"from_block_number": fromBlock,
 		"to_block_number":   toBlock,
 	}
-	ctrl.DispatchOnce("CallEthApi", "get_blocks_range", params)
+	ctrl.DispatchOnce("CallEthApi", "get_blocks_range", msg)
 
-	result, ok := params.ReturnResult().(*CallEthApiResult)
+	result, ok := msg.ReturnResult().(*CallEthApiResult)
 	if !ok {
 		t.Fatalf("result is not *CallEthApiResult, got %T", result)
 	}

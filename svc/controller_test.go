@@ -16,6 +16,36 @@
 
 package svc
 
-const (
-	rpcEndpoint = "http://eth.tforce.xyz"
+import (
+	"testing"
+	"time"
+
+	"github.com/lukaz17/evm-rpc-agent/config"
+	"github.com/lukaz17/evm-rpc-agent/db"
+	"github.com/lukaz17/evm-rpc-agent/rpc"
+	"github.com/rs/zerolog"
 )
+
+const (
+	rpcEndpoint  = "http://eth.tforce.xyz"
+	databaseUri  = "mongodb://localhost:27017"
+	databaseName = "evm-rpc-agent-test"
+)
+
+func newTestController(t *testing.T, dbc *db.DbContext) *Controller {
+	t.Helper()
+	logger := zerolog.New(zerolog.ConsoleWriter{Out: &nullWriter{}, TimeFormat: time.DateTime}).
+		With().
+		Timestamp().
+		Logger()
+	rpcClient := rpc.NewClient(rpcEndpoint)
+
+	cfg := &config.ServiceConfig{
+		MaxRpcRrtryCount:         3,
+		HistoricalApiWorkerCount: 1,
+		StandardApiWorkerCount:   1,
+	}
+	ctrl := NewController(cfg, rpcClient, dbc, logger)
+	go ctrl.Run()
+	return ctrl
+}
