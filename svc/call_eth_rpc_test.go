@@ -35,9 +35,9 @@ func TestCallEthRpc_EthGetBlockByNumber(t *testing.T) {
 	rpcClient := rpc.NewClient(rpcEndpoint)
 
 	cfg := &config.ServiceConfig{
-		MaxRpcRrtryCount:          3,
-		HistoricalApisWorkerCount: 1,
-		StandardApisWorkerCount:   1,
+		MaxRpcRrtryCount:         3,
+		HistoricalApiWorkerCount: 1,
+		StandardApiWorkerCount:   1,
 	}
 	ctrl := NewController(cfg, rpcClient, logger)
 	go ctrl.Run()

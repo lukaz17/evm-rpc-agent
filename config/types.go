@@ -55,7 +55,7 @@ type RPCConfig struct {
 
 // ServiceConfig contains configurations for background processor.
 type ServiceConfig struct {
-	MaxRpcRrtryCount          int `koanf:"max_rpc_retry_count"`
-	HistoricalApisWorkerCount int `koanf:"historical_apis_worker_count"`
-	StandardApisWorkerCount   int `koanf:"standard_apis_worker_count"`
+	MaxRpcRrtryCount         int `koanf:"max_rpc_retry_count"`
+	HistoricalApiWorkerCount int `koanf:"historical_api_worker_count"`
+	StandardApiWorkerCount   int `koanf:"standard_api_worker_count"`
 }

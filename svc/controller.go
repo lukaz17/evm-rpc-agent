@@ -37,17 +37,22 @@ func NewController(cfg *config.ServiceConfig, rpc *rpc.Client, logger zerolog.Lo
 	diagLogger := config.ZerologAdapter{Logger: logger}
 	router := multiplex.NewServiceController(diagLogger)
 
+	callEthApiSvc := NewCallEthApi(logger)
+	callEthApiSvc.SetRouter(router)
+	callEthApiSvc.SetWorker(4)
+	router.Register(callEthApiSvc)
+
 	if rpc == nil {
-		diagLogger.Warn("RPC services are not available.")
+		diagLogger.Warn("RPC service are not available.")
 	} else {
 		histCallEthRpcSvc := NewCallEthRpc("HistCallEthRpc", rpc, cfg, logger)
 		histCallEthRpcSvc.SetRouter(router)
-		histCallEthRpcSvc.SetWorker(uint64(cfg.HistoricalApisWorkerCount))
+		histCallEthRpcSvc.SetWorker(uint64(cfg.HistoricalApiWorkerCount))
 		router.Register(histCallEthRpcSvc)
 
 		stdCallEthRpcSvc := NewCallEthRpc("StdCallEthRpc", rpc, cfg, logger)
 		stdCallEthRpcSvc.SetRouter(router)
-		stdCallEthRpcSvc.SetWorker(uint64(cfg.StandardApisWorkerCount))
+		stdCallEthRpcSvc.SetWorker(uint64(cfg.StandardApiWorkerCount))
 		router.Register(stdCallEthRpcSvc)
 	}
 

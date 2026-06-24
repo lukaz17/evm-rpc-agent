@@ -109,9 +109,9 @@ func defaultConfig() *koanf.Koanf {
 				URL: "http://localhost:8545",
 			},
 			Service: &ServiceConfig{
-				MaxRpcRrtryCount:          5,
-				HistoricalApisWorkerCount: 4,
-				StandardApisWorkerCount:   16,
+				MaxRpcRrtryCount:         5,
+				HistoricalApiWorkerCount: 4,
+				StandardApiWorkerCount:   16,
 			},
 		}, "koanf"),
 		nil,
