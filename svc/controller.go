@@ -48,6 +48,11 @@ func NewController(cfg *config.ServiceConfig, rpc *rpc.Client, dbc *db.DbContext
 	getBlockSvc.SetWorker(2)
 	router.Register(getBlockSvc)
 
+	notifySvc := NewNotify(logger)
+	notifySvc.SetRouter(router)
+	notifySvc.SetWorker(1)
+	router.Register(notifySvc)
+
 	if dbc == nil {
 		diagLogger.Warn("Database services are not available.")
 	} else {
