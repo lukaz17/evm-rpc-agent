@@ -43,6 +43,11 @@ func NewController(cfg *config.ServiceConfig, rpc *rpc.Client, dbc *db.DbContext
 	callEthApiSvc.SetWorker(4)
 	router.Register(callEthApiSvc)
 
+	getBlockSvc := NewGetBlock(logger)
+	getBlockSvc.SetRouter(router)
+	getBlockSvc.SetWorker(2)
+	router.Register(getBlockSvc)
+
 	if dbc == nil {
 		diagLogger.Warn("Database services are not available.")
 	} else {
