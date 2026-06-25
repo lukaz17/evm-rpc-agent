@@ -37,6 +37,10 @@ type Controller struct {
 func NewController(cfg *config.ServiceConfig, rpc *rpc.Client, dbc *db.DbContext, logger zerolog.Logger) *Controller {
 	diagLogger := config.ZerologAdapter{Logger: logger}
 	router := multiplex.NewServiceController(diagLogger)
+	scheduler := NewScheduler(cfg.SchedulerTickMs, logger)
+	scheduler.SetRouter(router)
+	scheduler.SetWorker(1)
+	router.Register(scheduler)
 
 	callEthApiSvc := NewCallEthApi(logger)
 	callEthApiSvc.SetRouter(router)
