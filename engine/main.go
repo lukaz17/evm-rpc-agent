@@ -94,6 +94,7 @@ func Execute() {
 	}
 
 	rootCmd.AddCommand(ConfigCmd())
+	rootCmd.AddCommand(ServiceCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
