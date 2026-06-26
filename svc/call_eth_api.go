@@ -134,6 +134,69 @@ func (s *CallEthApi) coreProcessHook(workerID uint64, msg *multiplex.ServiceMess
 		}
 		s.i.Logger.Infof("%s#%02d: %d blocks retrieved in %v. Error count = %d.", s.i.ServiceID, workerID, len(requests), time.Since(startTime), errorCount)
 		msg.Return(result)
+	case "trace_call":
+		fallthrough
+	case "trace_calls_range":
+		s.i.Logger.Infof("%s#%02d: %s started.", s.i.ServiceID, workerID, msg.Command)
+		startTime := time.Now()
+		p := NewCallEthApiParams(msg)
+		requests := []multiplex.ExecParams{}
+		signal := new(sync.WaitGroup)
+		if msg.Command == "trace_call" {
+			for _, blockNumber := range p.BlockNumbers {
+				hexNum := "0x" + blockNumber.Text(16)
+				tracerOption := map[string]string{"tracer": "callTracer"}
+				request := multiplex.ExecParams{
+					"method":       "debug_traceBlockByNumber",
+					"params":       []any{hexNum, tracerOption},
+					"block_number": new(big.Int).Set(blockNumber),
+					"signal":       signal,
+				}
+				request.ExpectReturnCustomSignal(signal)
+				requests = append(requests, request)
+			}
+		}
+		if msg.Command == "trace_calls_range" {
+			for blockNumber := new(big.Int).Set(p.FromBlockNumber); blockNumber.Cmp(p.ToBlockNumber) <= 0; blockNumber.Set(new(big.Int).Add(blockNumber, big.NewInt(1))) {
+				hexNum := "0x" + blockNumber.Text(16)
+				tracerOption := map[string]string{"tracer": "callTracer"}
+				request := multiplex.ExecParams{
+					"method":       "debug_traceBlockByNumber",
+					"params":       []any{hexNum, tracerOption},
+					"block_number": new(big.Int).Set(blockNumber),
+				}
+				request.ExpectReturnCustomSignal(signal)
+				requests = append(requests, request)
+			}
+		}
+		result := &CallEthApiResult{
+			Data: make([]*CallEthApiItem, len(requests)),
+		}
+		errorCount := 0
+		if len(requests) > 0 {
+			signal.Add(len(requests))
+			for _, request := range requests {
+				s.Dispatch("HistCallEthRpc", "rpc_call", request)
+			}
+			signal.Wait()
+			for i, request := range requests {
+				blockNumber := request["block_number"].(*big.Int)
+				callRpcResult := request.ReturnResult().(*CallEthRpcResult)
+				result.Data[i] = &CallEthApiItem{
+					ID:    blockNumber.Text(10),
+					Data:  string(callRpcResult.Data),
+					Error: callRpcResult.Error,
+				}
+				if result.Data[i].Error != nil {
+					errorCount++
+				}
+			}
+			if errorCount > 0 {
+				result.Error = errors.New("error while invoking api, check inner data for details")
+			}
+		}
+		s.i.Logger.Infof("%s#%02d: %d trace blocks retrieved in %v. Error count = %d.", s.i.ServiceID, workerID, len(requests), time.Since(startTime), errorCount)
+		msg.Return(result)
 	default:
 		s.i.Logger.Warnf("%s#%02d: Unknown command %s.", s.i.ServiceID, workerID, msg.Command)
 		msg.Return(nil)

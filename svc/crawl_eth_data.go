@@ -68,6 +68,7 @@ func (s *CrawlEthData) coreProcessHook(workerID uint64, msg *multiplex.ServiceMe
 		}
 
 		s.dispatchBlocks(workerID, blockNumResult.Data)
+		s.dispatchCallTraces(workerID, blockNumResult.Data)
 
 		msg.Return(true)
 
@@ -102,6 +103,32 @@ func (s *CrawlEthData) dispatchBlocks(workerID uint64, latestBlock uint64) {
 		"batch_size":        s.batchSize,
 	}
 	s.Dispatch("GetBlock", "get_blocks", getBlocksReq)
+}
+
+func (s *CrawlEthData) dispatchCallTraces(workerID uint64, latestBlock uint64) {
+	s.target.CallTrace.Lock()
+	defer s.target.CallTrace.Unlock()
+
+	fromBlock := mem.CurrentHeight.CallTrace
+	targetVal := s.target.CallTrace.ValueNoLock()
+	if fromBlock < targetVal {
+		s.i.Logger.Warnf("%s#%d: Call Trace crawl already in progress (cached=%d, target=%d), skipping.", s.i.ServiceID, workerID, fromBlock, targetVal)
+		return
+	}
+	if fromBlock >= latestBlock {
+		s.i.Logger.Infof("%s#%d: Call Traces up to date (cached=%d, latest=%d).", s.i.ServiceID, workerID, fromBlock, latestBlock)
+		return
+	}
+
+	mem.TargetHeight.CallTrace = latestBlock
+	s.target.CallTrace.SetNoLock(latestBlock)
+	s.i.Logger.Infof("%s#%d: Fetching call traces %d to %d.", s.i.ServiceID, workerID, fromBlock+1, latestBlock)
+	getTracesReq := multiplex.ExecParams{
+		"from_block_number": new(big.Int).SetUint64(fromBlock + 1),
+		"to_block_number":   new(big.Int).SetUint64(latestBlock),
+		"batch_size":        s.batchSize,
+	}
+	s.Dispatch("TraceBlock", "trace_calls", getTracesReq)
 }
 
 type LatestBlock struct {

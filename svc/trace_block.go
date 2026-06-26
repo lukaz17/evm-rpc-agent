@@ -26,25 +26,25 @@ import (
 	"github.com/tforce-io/tf-golib/multiplex"
 )
 
-// GetBlock downloads blockchain data in batches.
-type GetBlock struct {
+// TraceBlock downloads blockchain trace data in batches.
+type TraceBlock struct {
 	multiplex.ServiceCore
 	i *multiplex.ServiceCoreInternal
 }
 
-// Return new GetBlock instance.
-func NewGetBlock(logger zerolog.Logger) *GetBlock {
-	svc := &GetBlock{}
-	svc.i = svc.InitServiceCore("GetBlock", config.ZerologAdapter{Logger: logger}, svc.coreProcessHook)
+// Return new TraceBlock instance.
+func NewTraceBlock(logger zerolog.Logger) *TraceBlock {
+	svc := &TraceBlock{}
+	svc.i = svc.InitServiceCore("TraceBlock", config.ZerologAdapter{Logger: logger}, svc.coreProcessHook)
 	return svc
 }
 
 // Implement multiplex.ServiceCoreInternal.
-func (s *GetBlock) coreProcessHook(workerID uint64, msg *multiplex.ServiceMessage) *multiplex.HookState {
+func (s *TraceBlock) coreProcessHook(workerID uint64, msg *multiplex.ServiceMessage) *multiplex.HookState {
 	switch msg.Command {
-	case "get_blocks":
-		p := NewGetBlockParams(msg)
-		s.downloadBlocks(workerID, p.FromBlockNumber, p.ToBlockNumber, p.BatchSize)
+	case "trace_calls":
+		p := NewTraceBlockParams(msg)
+		s.downloadTraceBlocks(workerID, p.FromBlockNumber, p.ToBlockNumber, p.BatchSize)
 		msg.Return(true)
 	default:
 		s.i.Logger.Warnf("%s#%d: Unknown command %s.", s.i.ServiceID, workerID, msg.Command)
@@ -53,8 +53,8 @@ func (s *GetBlock) coreProcessHook(workerID uint64, msg *multiplex.ServiceMessag
 	return &multiplex.HookState{Handled: true}
 }
 
-func (s *GetBlock) downloadBlocks(workerID uint64, from, to *big.Int, batch int) {
-	s.i.Logger.Infof("%s#%d: Block download started.", s.ServiceID(), workerID)
+func (s *TraceBlock) downloadTraceBlocks(workerID uint64, from, to *big.Int, batch int) {
+	s.i.Logger.Infof("%s#%d: Trace block download started.", s.ServiceID(), workerID)
 	batchStartBlockNumber := new(big.Int).Set(from)
 	finalBlockNumber := new(big.Int).Set(to)
 	for batchStartBlockNumber.Cmp(finalBlockNumber) <= 0 {
@@ -62,46 +62,46 @@ func (s *GetBlock) downloadBlocks(workerID uint64, from, to *big.Int, batch int)
 		if batchEndBlockNumber.Cmp(finalBlockNumber) > 0 {
 			batchEndBlockNumber.Set(finalBlockNumber)
 		}
-		getBlocksRequest := multiplex.ExecParams{
+		traceBlocksRequest := multiplex.ExecParams{
 			"from_block_number": batchStartBlockNumber,
 			"to_block_number":   batchEndBlockNumber,
 		}
-		getBlocksRequest.ExpectReturn()
-		s.Dispatch("CallEthApi", "get_blocks_range", getBlocksRequest)
-		getBlocksResponse := getBlocksRequest.WaitForReturn().(*CallEthApiResult)
-		getBlockResults := []*CallEthApiItem{}
-		for _, blockResult := range getBlocksResponse.Data {
-			if blockResult.Error != nil {
+		traceBlocksRequest.ExpectReturn()
+		s.Dispatch("CallEthApi", "trace_calls_range", traceBlocksRequest)
+		traceBlocksResponse := traceBlocksRequest.WaitForReturn().(*CallEthApiResult)
+		getTraceResults := []*CallEthApiItem{}
+		for _, traceResult := range traceBlocksResponse.Data {
+			if traceResult.Error != nil {
 				break
 			}
-			getBlockResults = append(getBlockResults, blockResult)
+			getTraceResults = append(getTraceResults, traceResult)
 		}
-		lastSuccess := new(big.Int).Add(batchStartBlockNumber, big.NewInt(int64(len(getBlockResults))-1))
-		writeBlockRequest := multiplex.ExecParams{
-			"data": getBlockResults,
+		lastSuccess := new(big.Int).Add(batchStartBlockNumber, big.NewInt(int64(len(getTraceResults))-1))
+		writeTraceRequest := multiplex.ExecParams{
+			"data": getTraceResults,
 		}
-		writeBlockRequest.ExpectReturn()
-		s.Dispatch("WriteDatabase", db.BlockCollection, writeBlockRequest)
-		writeBlockRequest.Wait()
-		result := writeBlockRequest.ReturnResult().(*WriteDatabaseResult)
+		writeTraceRequest.ExpectReturn()
+		s.Dispatch("WriteDatabase", db.CallTraceCollection, writeTraceRequest)
+		writeTraceRequest.Wait()
+		result := writeTraceRequest.ReturnResult().(*WriteDatabaseResult)
 		if result.SuccessCount > 0 {
-			mem.CurrentHeight.Block = lastSuccess.Uint64()
+			mem.CurrentHeight.CallTrace = lastSuccess.Uint64()
 		}
 		batchEndBlockNumber.Set(lastSuccess)
 		batchStartBlockNumber = new(big.Int).Add(batchEndBlockNumber, big.NewInt(1))
 	}
 }
 
-// GetBlockParams contain parameters of all commands of GetBlock.
-type GetBlockParams struct {
+// TraceBlockParams contain parameters of all commands of TraceBlock.
+type TraceBlockParams struct {
 	BatchSize       int
 	FromBlockNumber *big.Int
 	ToBlockNumber   *big.Int
 }
 
-// Extract parameters from a service message and return new GetBlockParams.
-func NewGetBlockParams(msg *multiplex.ServiceMessage) *GetBlockParams {
-	return &GetBlockParams{
+// Extract parameters from a service message and return new TraceBlockParams.
+func NewTraceBlockParams(msg *multiplex.ServiceMessage) *TraceBlockParams {
+	return &TraceBlockParams{
 		BatchSize:       msg.GetParam("batch_size", 1).(int),
 		FromBlockNumber: msg.GetParam("from_block_number", new(big.Int)).(*big.Int),
 		ToBlockNumber:   msg.GetParam("to_block_number", new(big.Int)).(*big.Int),

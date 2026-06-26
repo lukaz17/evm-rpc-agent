@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 
 	"github.com/lukaz17/evm-rpc-agent/config"
+	"github.com/lukaz17/evm-rpc-agent/core"
 	"github.com/lukaz17/evm-rpc-agent/db"
 	"github.com/rs/zerolog"
 	"github.com/tforce-io/tf-golib/multiplex"
@@ -56,6 +57,11 @@ func (s *WriteDatabase) coreProcessHook(workerID uint64, msg *multiplex.ServiceM
 		p := NewWriteDatabaseParams(msg)
 		result := s.writeBlocks(workerID, p.Data)
 		msg.Return(result)
+	case db.CallTraceCollection:
+		s.i.Logger.Infof("%s#%d: Call trace write started.", s.i.ServiceID, workerID)
+		p := NewWriteDatabaseParams(msg)
+		result := s.writeCallTraces(workerID, p.Data)
+		msg.Return(result)
 	default:
 		s.i.Logger.Warnf("%s#%d: Unknown command %s.", s.i.ServiceID, workerID, msg.Command)
 		msg.Return(nil)
@@ -85,6 +91,42 @@ func (s *WriteDatabase) writeBlocks(workerID uint64, blocks []*CallEthApiItem) *
 	s.i.Logger.Infof("%s#%d: Block write completed. Success = %d.", s.i.ServiceID, workerID, len(blocks))
 	return &WriteDatabaseResult{
 		SuccessCount: len(blocks),
+		FailedCount:  0,
+	}
+}
+
+func (s *WriteDatabase) writeCallTraces(workerID uint64, traces []*CallEthApiItem) *WriteDatabaseResult {
+	ctx := context.Background()
+
+	s.i.Logger.Infof("%s#%d: Call trace write started. Count = %d.", s.i.ServiceID, workerID, len(traces))
+
+	rawInputs := make([]db.RawDataWithBlockNum, 0, len(traces))
+	failedCount := 0
+	for _, trace := range traces {
+		val, parseErr := core.DecodeNumericString(trace.ID)
+		if parseErr != nil {
+			s.i.Logger.Warnf("%s#%d: Failed to parse block number %s. Error: %v", s.i.ServiceID, workerID, trace.ID, parseErr)
+			failedCount++
+			continue
+		}
+		rawInputs = append(rawInputs, db.RawDataWithBlockNum{
+			Raw:         json.RawMessage(trace.Data),
+			BlockNumber: val.Uint64(),
+		})
+	}
+
+	if upsertErr := s.dbc.UpsertRawCallTraces(ctx, rawInputs); upsertErr != nil {
+		s.i.Logger.Warnf("%s#%d: Call trace write failed. Error: %v", s.i.ServiceID, workerID, upsertErr)
+		failedCount += len(rawInputs)
+		return &WriteDatabaseResult{
+			SuccessCount: 0,
+			FailedCount:  failedCount,
+		}
+	}
+
+	s.i.Logger.Infof("%s#%d: Call trace write completed. Success = %d.", s.i.ServiceID, workerID, len(rawInputs))
+	return &WriteDatabaseResult{
+		SuccessCount: len(rawInputs),
 		FailedCount:  0,
 	}
 }
