@@ -41,6 +41,11 @@ func NewNotify(logger zerolog.Logger) *Notify {
 // Implement multiplex.ServiceCoreInternal.
 func (s *Notify) coreProcessHook(workerID uint64, msg *multiplex.ServiceMessage) *multiplex.HookState {
 	switch msg.Command {
+	case "height_status":
+		s.i.Logger.Infof("CurrentHeight -> Block: %d, CallTrace: %d | TargetHeight -> Block: %d, CallTrace: %d",
+			mem.CurrentHeight.Block, mem.CurrentHeight.CallTrace,
+			mem.TargetHeight.Block, mem.TargetHeight.CallTrace)
+		msg.Return(true)
 	case "last_update":
 		mem.LastUpdate = time.Now().UnixMilli()
 		msg.Return(true)
