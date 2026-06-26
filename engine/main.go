@@ -60,25 +60,25 @@ func version() string {
 // Initialize configurations, loggings for internal modules, and display basic
 // information about this invocation.
 func InitApp() *Controller {
-	cfg := NewController(true)
+	ctrl := NewController(true)
 
 	pwd, _ := os.Getwd()
 	pwd, _ = filepath.Abs(pwd)
 	exec, _ := os.Executable()
 	exec, _ = filepath.Abs(exec)
 
-	cfg.Logger.Info().Msgf("TFunifiler v%s", version())
+	ctrl.Logger.Info().Msgf("EVM RPC Agent v%s", version())
 	gitDate2, _ := time.Parse("20060102", gitDate)
 	buildDate := opx.Ternary(gitDate == "", time.Now().UTC(), gitDate2)
-	cfg.Logger.Info().Msgf("Copyright (C) %d Nguyen Nhat Tung", buildDate.Year())
-	cfg.Logger.Info().Msg("Licensed under GPL-3.0 license. See COPYING file along with this program for more details.")
-	cfg.Logger.Info().Msgf("Working directory %s", pwd)
-	cfg.Logger.Info().Msgf("Config directory %s", cfg.Root.ConfigDir)
-	cfg.Logger.Info().Msgf("Executable file %s", exec)
-	cfg.Logger.Info().Msgf("Portable mode %t", cfg.Root.IsPortable)
-	cfg.Logger.Info().Msg("-----------------")
+	ctrl.Logger.Info().Msgf("Copyright (C) %d Nguyen Nhat Tung", buildDate.Year())
+	ctrl.Logger.Info().Msg("Licensed under GPL-3.0 license. See COPYING file along with this program for more details.")
+	ctrl.Logger.Info().Msgf("Working directory %s", pwd)
+	ctrl.Logger.Info().Msgf("Config directory %s", ctrl.Root.ConfigDir)
+	ctrl.Logger.Info().Msgf("Executable file %s", exec)
+	ctrl.Logger.Info().Msgf("Portable mode %t", ctrl.Root.IsPortable)
+	ctrl.Logger.Info().Msg("-----------------")
 
-	return cfg
+	return ctrl
 }
 
 // Execute the program.
@@ -92,6 +92,8 @@ func Execute() {
 		Short:   "EVM RPC agent for proxying and managing Ethereum JSON-RPC requests",
 		Version: version(),
 	}
+
+	rootCmd.AddCommand(ConfigCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

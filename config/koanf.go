@@ -32,6 +32,8 @@ import (
 
 var cfg *RootConfig
 
+const configFileName = "evm-rpc-agent.yml"
+
 // Init configuration for the application.
 func InitKoanf(useFS bool) (*RootConfig, error) {
 	if cfg != nil {
@@ -39,17 +41,17 @@ func InitKoanf(useFS bool) (*RootConfig, error) {
 	}
 
 	isPortable := !useFS || IsPortable()
-	configFile := "evm-rpc-agent.yml"
+	configFile := configFileName
 
 	if isPortable {
 		exec, _ := os.Executable()
-		configFile = path.Join(path.Dir(exec), "evm-rpc-agent.yml")
+		configFile = path.Join(path.Dir(exec), configFileName)
 	} else if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
 		home := os.Getenv("HOME")
-		configFile = path.Join(home, ".config", "evm-rpc-agent", "evm-rpc-agent.yml")
+		configFile = path.Join(home, ".config", "evm-rpc-agent", configFileName)
 	} else if runtime.GOOS == "windows" {
 		appData := os.Getenv("APPDATA")
-		configFile = path.Join(appData, "evm-rpc-agent", "evm-rpc-agent.yml")
+		configFile = path.Join(appData, "evm-rpc-agent", configFileName)
 	}
 
 	var err error
@@ -64,29 +66,8 @@ func InitKoanf(useFS bool) (*RootConfig, error) {
 	return cfg, nil
 }
 
-// Check if the application is in portable mode.
-func IsPortable() bool {
-	exec, _ := os.Executable()
-	portableFile := filepath.Join(filepath.Dir(exec), "evm-rpc-agent.portable")
-	return fileExists(portableFile)
-}
-
-// Build configurations for the application with the following priority:
-// Environment variables -> YAML configuration file -> default values.
-func buildConfig(useFS bool, f string) (*RootConfig, error) {
-	k := defaultConfig()
-	if useFS && fileExists(f) {
-		k, _ = configFromYaml(k, f)
-	}
-	k, _ = configFromEnv(k)
-
-	var config RootConfig
-	err := k.Unmarshal("", &config)
-	return &config, err
-}
-
 // Get default configuration values.
-func defaultConfig() *koanf.Koanf {
+func DefaultConfig() *koanf.Koanf {
 	k := koanf.New(".")
 
 	k.Load(
@@ -122,6 +103,27 @@ func defaultConfig() *koanf.Koanf {
 	)
 
 	return k
+}
+
+// Check if the application is in portable mode.
+func IsPortable() bool {
+	exec, _ := os.Executable()
+	portableFile := filepath.Join(filepath.Dir(exec), "evm-rpc-agent.portable")
+	return fileExists(portableFile)
+}
+
+// Build configurations for the application with the following priority:
+// Environment variables -> YAML configuration file -> default values.
+func buildConfig(useFS bool, f string) (*RootConfig, error) {
+	k := DefaultConfig()
+	if useFS && fileExists(f) {
+		k, _ = configFromYaml(k, f)
+	}
+	k, _ = configFromEnv(k)
+
+	var config RootConfig
+	err := k.Unmarshal("", &config)
+	return &config, err
 }
 
 // Get configuration values from environment variables.

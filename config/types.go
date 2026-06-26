@@ -18,9 +18,9 @@ package config
 
 // RootConfig contains all available configurations for the application.
 type RootConfig struct {
-	ConfigDir  string
-	ConfigFile string
-	IsPortable bool
+	ConfigDir  string          `koanf:"-"`
+	ConfigFile string          `koanf:"-"`
+	IsPortable bool            `koanf:"-"`
 	Database   *DatabaseConfig `koanf:"database"`
 	Log        *LogConfig      `koanf:"log"`
 	RPC        *RPCConfig      `koanf:"rpc"`
