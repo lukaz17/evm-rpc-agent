@@ -69,6 +69,16 @@ func NewController(cfg *config.ServiceConfig, rpc *rpc.Client, dbc *db.DbContext
 	if rpc == nil {
 		diagLogger.Warn("RPC services are not available.")
 	} else {
+		exclCallEthRpcSvc := NewCallEthRpc("ExclCallEthRpc", rpc, cfg, logger)
+		exclCallEthRpcSvc.SetRouter(router)
+		exclCallEthRpcSvc.SetWorker(1)
+		router.Register(exclCallEthRpcSvc)
+
+		crawlEthDataSvc := NewCrawlEthData(cfg.CrawlBatchSize, logger)
+		crawlEthDataSvc.SetRouter(router)
+		crawlEthDataSvc.SetWorker(1)
+		router.Register(crawlEthDataSvc)
+
 		histCallEthRpcSvc := NewCallEthRpc("HistCallEthRpc", rpc, cfg, logger)
 		histCallEthRpcSvc.SetRouter(router)
 		histCallEthRpcSvc.SetWorker(uint64(cfg.HistoricalApiWorkerCount))

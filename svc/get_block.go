@@ -21,6 +21,7 @@ import (
 
 	"github.com/lukaz17/evm-rpc-agent/config"
 	"github.com/lukaz17/evm-rpc-agent/db"
+	"github.com/lukaz17/evm-rpc-agent/mem"
 	"github.com/rs/zerolog"
 	"github.com/tforce-io/tf-golib/multiplex"
 )
@@ -71,16 +72,22 @@ func (s *GetBlock) downloadBlocks(workerID uint64, from, to *big.Int, batch int)
 		getBlockResults := []*CallEthApiItem{}
 		for _, blockResult := range getBlocksResponse.Data {
 			if blockResult.Error != nil {
-				continue
+				break
 			}
 			getBlockResults = append(getBlockResults, blockResult)
 		}
+		lastSuccess := new(big.Int).Add(batchStartBlockNumber, big.NewInt(int64(len(getBlockResults))-1))
 		writeBlockRequest := multiplex.ExecParams{
 			"data": getBlockResults,
 		}
 		writeBlockRequest.ExpectReturn()
 		s.Dispatch("WriteDatabase", db.BlockCollection, writeBlockRequest)
 		writeBlockRequest.Wait()
+		result := writeBlockRequest.ReturnResult().(*WriteDatabaseResult)
+		if result.SuccessCount > 0 {
+			mem.CurrentHeight.Block = lastSuccess.Uint64()
+		}
+		batchEndBlockNumber.Set(lastSuccess)
 		batchStartBlockNumber = new(big.Int).Add(batchEndBlockNumber, big.NewInt(1))
 	}
 }

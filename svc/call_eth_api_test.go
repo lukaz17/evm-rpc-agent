@@ -24,6 +24,25 @@ import (
 	"github.com/tforce-io/tf-golib/multiplex"
 )
 
+func TestCallEthApi_BlockNumber(t *testing.T) {
+	ctrl := newTestController(t, nil)
+	msg := multiplex.ExecParams{}
+	ctrl.DispatchOnce("CallEthApi", "block_number", msg)
+
+	result, ok := msg.ReturnResult().(*CallBlockNumberResult)
+	if !ok {
+		t.Fatalf("result is not *CallBlockNumberResult, got %T", result)
+	}
+
+	if result.Error != nil {
+		t.Fatalf("unexpected error: %v", result.Error)
+	}
+
+	if result.Data == 0 {
+		t.Fatal("block number should be > 0")
+	}
+}
+
 func TestCallEthApi_GetBlocks(t *testing.T) {
 	blockNumbers := []*big.Int{
 		big.NewInt(17),

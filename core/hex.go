@@ -255,7 +255,7 @@ type Integer big.Int
 
 // Return new instance of Integer from a numeric string.
 func NewIntegerFromString(s string) (Integer, error) {
-	val, err := decodeNumericString(s)
+	val, err := DecodeNumericString(s)
 	if err != nil {
 		return Integer{}, err
 	}
@@ -308,7 +308,7 @@ func (i *Integer) MarshalJSON() ([]byte, error) {
 func (i *Integer) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err == nil {
-		val, err := decodeNumericString(s)
+		val, err := DecodeNumericString(s)
 		if err != nil {
 			return err
 		}
@@ -360,7 +360,7 @@ func (i *Integer) UnmarshalBSONValue(t byte, data []byte) error {
 	case bson.TypeString:
 		rv := bson.RawValue{Type: bson.Type(t), Value: data}
 		s := rv.StringValue()
-		val, err := decodeNumericString(s)
+		val, err := DecodeNumericString(s)
 		if err != nil {
 			return err
 		}

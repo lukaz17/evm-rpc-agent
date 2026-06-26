@@ -19,7 +19,11 @@ package mem
 import "github.com/tforce-io/tf-golib/stdx/mathxt"
 
 var (
-	BlockHeight = &LatestBlock{
+	CurrentHeight = &LatestBlock{
+		Block:     0,
+		CallTrace: 0,
+	}
+	TargetHeight = &LatestBlock{
 		Block:     0,
 		CallTrace: 0,
 	}

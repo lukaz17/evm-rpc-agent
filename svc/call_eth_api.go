@@ -17,12 +17,15 @@
 package svc
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
 
 	"github.com/lukaz17/evm-rpc-agent/config"
+	"github.com/lukaz17/evm-rpc-agent/core"
 	"github.com/rs/zerolog"
 	"github.com/tforce-io/tf-golib/multiplex"
 )
@@ -43,6 +46,33 @@ func NewCallEthApi(logger zerolog.Logger) *CallEthApi {
 // Implement multiplex.ServiceCoreInternal.
 func (s *CallEthApi) coreProcessHook(workerID uint64, msg *multiplex.ServiceMessage) *multiplex.HookState {
 	switch msg.Command {
+	case "block_number":
+		s.i.Logger.Infof("%s#%02d: %s started.", s.i.ServiceID, workerID, msg.Command)
+		request := multiplex.ExecParams{
+			"method": "eth_blockNumber",
+			"params": []any{},
+		}
+		request.ExpectReturn()
+		s.Dispatch("ExclCallEthRpc", "rpc_call", request)
+		result := request.WaitForReturn().(*CallEthRpcResult)
+		var data uint64
+		if result.Error == nil {
+			var hexStr string
+			if err := json.Unmarshal(result.Data, &hexStr); err != nil {
+				result.Error = fmt.Errorf("unmarshal block number: %w", err)
+			} else {
+				val, parseErr := core.DecodeNumericString(hexStr)
+				if parseErr != nil {
+					result.Error = fmt.Errorf("parse block number %s: %w", hexStr, parseErr)
+				} else {
+					data = val.Uint64()
+				}
+			}
+		}
+		msg.Return(&CallBlockNumberResult{
+			Data:  data,
+			Error: result.Error,
+		})
 	case "get_blocks":
 		fallthrough
 	case "get_blocks_range":
@@ -125,6 +155,12 @@ func NewCallEthApiParams(msg *multiplex.ServiceMessage) *CallEthApiParams {
 		FromBlockNumber: msg.GetParam("from_block_number", new(big.Int)).(*big.Int),
 		ToBlockNumber:   msg.GetParam("to_block_number", new(big.Int)).(*big.Int),
 	}
+}
+
+// CallBlockNumberResult contains the result of block_number command.
+type CallBlockNumberResult struct {
+	Data  uint64
+	Error error
 }
 
 // CallEthApiResult holds the result of a single call to CallEthRpc.

@@ -40,7 +40,7 @@ func decodeHex(s string) ([]byte, error) {
 }
 
 // Decode a numeric string into big.Int.
-func decodeNumericString(s string) (*big.Int, error) {
+func DecodeNumericString(s string) (*big.Int, error) {
 	if s == "" || s == "0x" {
 		return nil, nil
 	}

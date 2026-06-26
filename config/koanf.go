@@ -109,6 +109,8 @@ func defaultConfig() *koanf.Koanf {
 				URL: "http://localhost:8545",
 			},
 			Service: &ServiceConfig{
+				CrawlIntervalMs:  1000,
+				CrawlBatchSize:   10,
 				MaxRpcRrtryCount: 5,
 				SchedulerTickMs:  250,
 
