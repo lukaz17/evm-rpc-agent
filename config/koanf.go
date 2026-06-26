@@ -95,7 +95,7 @@ func DefaultConfig() *koanf.Koanf {
 				MaxRpcRrtryCount: 5,
 				SchedulerTickMs:  250,
 
-				HistoricalApiWorkerCount: 4,
+				HistoricalApiWorkerCount: 8,
 				StandardApiWorkerCount:   16,
 			},
 		}, "koanf"),
@@ -128,10 +128,10 @@ func buildConfig(useFS bool, f string) (*RootConfig, error) {
 
 // Get configuration values from environment variables.
 func configFromEnv(k *koanf.Koanf) (*koanf.Koanf, error) {
-	err := k.Load(env.Provider("LKZ_EVM_RPC_", ".", func(s string) string {
+	err := k.Load(env.Provider("LKZ_EVM_RPC__", ".", func(s string) string {
 		return strings.Replace(
 			strings.ToLower(
-				strings.TrimPrefix(s, "LKZ_EVM_RPC_")), "_", ".", -1)
+				strings.TrimPrefix(s, "LKZ_EVM_RPC__")), "__", ".", -1)
 	}), nil)
 	if err != nil {
 		return k, err
