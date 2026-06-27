@@ -203,7 +203,7 @@ func TestScheduler_UnscheduleStopsExecution(t *testing.T) {
 	}
 }
 
-func newTestControllerWithTickMs(t *testing.T, tickMs int64, dbc *db.DbContext) *Controller {
+func newTestControllerWithTickMs(t *testing.T, tickMs uint64, dbc *db.DbContext) *Controller {
 	t.Helper()
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: &nullWriter{}, TimeFormat: time.DateTime}).
 		With().

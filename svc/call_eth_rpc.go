@@ -55,7 +55,7 @@ func (s *CallEthRpc) coreProcessHook(workerID uint64, msg *multiplex.ServiceMess
 		p := NewCallEthRpcParams(msg)
 		var raw json.RawMessage
 		err := s.rpc.Call(&raw, p.Method, p.Params...)
-		retryCount := 0
+		retryCount := uint64(0)
 		halfRetry := false
 		for err != nil && retryCount < s.o.MaxRetries {
 			errStr := err.Error()
@@ -110,5 +110,5 @@ type CallEthRpcResult struct {
 	Params     []any
 	Data       json.RawMessage
 	Error      error
-	RetryCount int
+	RetryCount uint64
 }

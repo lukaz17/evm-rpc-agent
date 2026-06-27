@@ -171,7 +171,7 @@ func TestTraceBlock_ParamsExtraction(t *testing.T) {
 		params    multiplex.ExecParams
 		wantFrom  int64
 		wantTo    int64
-		wantBatch int
+		wantBatch uint64
 	}{
 		{
 			name:      "default values",

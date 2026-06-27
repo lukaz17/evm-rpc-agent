@@ -53,7 +53,7 @@ func (s *TraceBlock) coreProcessHook(workerID uint64, msg *multiplex.ServiceMess
 	return &multiplex.HookState{Handled: true}
 }
 
-func (s *TraceBlock) downloadTraceBlocks(workerID uint64, from, to *big.Int, batch int) {
+func (s *TraceBlock) downloadTraceBlocks(workerID uint64, from, to *big.Int, batch uint64) {
 	s.i.Logger.Infof("%s#%d: Trace block download started.", s.ServiceID(), workerID)
 	batchStartBlockNumber := new(big.Int).Set(from)
 	finalBlockNumber := new(big.Int).Set(to)
@@ -94,7 +94,7 @@ func (s *TraceBlock) downloadTraceBlocks(workerID uint64, from, to *big.Int, bat
 
 // TraceBlockParams contain parameters of all commands of TraceBlock.
 type TraceBlockParams struct {
-	BatchSize       int
+	BatchSize       uint64
 	FromBlockNumber *big.Int
 	ToBlockNumber   *big.Int
 }
@@ -102,7 +102,7 @@ type TraceBlockParams struct {
 // Extract parameters from a service message and return new TraceBlockParams.
 func NewTraceBlockParams(msg *multiplex.ServiceMessage) *TraceBlockParams {
 	return &TraceBlockParams{
-		BatchSize:       msg.GetParam("batch_size", 1).(int),
+		BatchSize:       msg.GetParam("batch_size", uint64(1)).(uint64),
 		FromBlockNumber: msg.GetParam("from_block_number", new(big.Int)).(*big.Int),
 		ToBlockNumber:   msg.GetParam("to_block_number", new(big.Int)).(*big.Int),
 	}

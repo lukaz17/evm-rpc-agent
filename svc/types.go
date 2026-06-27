@@ -23,7 +23,7 @@ import (
 
 // NetworkOptions define the parameters for network calls with retry logic.
 type NetworkOptions struct {
-	MaxRetries  int
+	MaxRetries  uint64
 	MaxRetryGap uint64
 }
 
