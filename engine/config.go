@@ -79,6 +79,10 @@ func (m *ConfigModule) Export(outputPath string, diffOnly bool) error {
 
 // Get value of key from active configuration.
 func (m *ConfigModule) Get(key string) error {
+	if err := validateRequiredString(key, "key"); err != nil {
+		return err
+	}
+
 	k := koanf.New(".")
 	k.Load(structs.Provider(m.cfg, "koanf"), nil)
 
@@ -90,12 +94,21 @@ func (m *ConfigModule) Get(key string) error {
 
 // Write value of key to active YAML config file.
 func (m *ConfigModule) Set(key, value string) error {
-	k := koanf.New(".")
-	err := k.Load(file.Provider(m.cfg.ConfigFile), yaml.Parser())
-	if err != nil {
+	if err := validateRequiredString(key, "key"); err != nil {
 		return err
 	}
-	err = k.Set(key, value)
+	if err := validateRequiredString(value, "value"); err != nil {
+		return err
+	}
+
+	k := koanf.New(".")
+	if _, err := os.Stat(m.cfg.ConfigFile); err == nil {
+		err = k.Load(file.Provider(m.cfg.ConfigFile), yaml.Parser())
+		if err != nil {
+			return err
+		}
+	}
+	err := k.Set(key, value)
 	if err != nil {
 		return err
 	}
@@ -155,7 +168,7 @@ func ConfigCmd() *cobra.Command {
 	exportCmd.Flags().StringP("output", "o", "", "Output file path. Empty will output ot stdout.")
 
 	getCmd := &cobra.Command{
-		Use:   "get",
+		Use:   "get [key]",
 		Short: "Get the active value of a configuration key.",
 		Run: func(cmd *cobra.Command, args []string) {
 			c := NewController(true)
@@ -168,7 +181,7 @@ func ConfigCmd() *cobra.Command {
 	getCmd.Flags().StringP("key", "k", "", "Configuration key in dot-delimited format.")
 
 	setCmd := &cobra.Command{
-		Use:   "set",
+		Use:   "set <key> [value]",
 		Short: "Set a configuration value in the active YAML file.",
 		Run: func(cmd *cobra.Command, args []string) {
 			c := NewController(true)
@@ -200,6 +213,13 @@ func (m *ConfigModule) ParseConfigFlags(cmd *cobra.Command, args []string) *Conf
 	key, _ := cmd.Flags().GetString("key")
 	output, _ := cmd.Flags().GetString("output")
 	value, _ := cmd.Flags().GetString("value")
+
+	if len(args) >= 1 && key == "" {
+		key = args[0]
+	}
+	if len(args) >= 2 && value == "" {
+		value = args[1]
+	}
 
 	f := &ConfigFlags{
 		Diff:   diff,
