@@ -336,7 +336,7 @@ func (dbc *DbContext) DeleteCallTrace(ctx context.Context, number uint64) error 
 // Return size of CallTrace collection.
 func (dbc *DbContext) CountCallTraces(ctx context.Context) (int64, error) {
 	coll := dbc.db.Collection(CallTraceCollection)
-	return coll.CountDocuments(ctx, bson.M{})
+	return coll.EstimatedDocumentCount(ctx)
 }
 
 func (dbc *DbContext) insertCallTrace(ctx context.Context, trace *BlockCallTrace, upsert bool) error {

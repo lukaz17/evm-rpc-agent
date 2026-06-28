@@ -95,11 +95,11 @@ func (s *CrawlEthData) dispatchBlocks(workerID uint64, latestBlock uint64) {
 	fromBlock := mem.CurrentHeight.Block
 	targetVal := s.target.Block.ValueNoLock()
 	if fromBlock < targetVal {
-		s.i.Logger.Warnf("%s#%d: Crawl already in progress (cached=%d, target=%d), skipping.", s.i.ServiceID, workerID, fromBlock, targetVal)
+		s.i.Logger.Warnf("%s#%d: Block crawl already in progress (cached=%d, target=%d), skipping.", s.i.ServiceID, workerID, fromBlock, targetVal)
 		return
 	}
 	if fromBlock >= latestBlock {
-		s.i.Logger.Infof("%s#%d: Up to date (cached=%d, latest=%d).", s.i.ServiceID, workerID, fromBlock, latestBlock)
+		s.i.Logger.Infof("%s#%d: Blocks up to date (cached=%d, latest=%d).", s.i.ServiceID, workerID, fromBlock, latestBlock)
 		return
 	}
 

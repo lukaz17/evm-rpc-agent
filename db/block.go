@@ -398,7 +398,7 @@ func (dbc *DbContext) DeleteBlock(ctx context.Context, number uint64) error {
 // Return size of Block collection.
 func (dbc *DbContext) CountBlocks(ctx context.Context) (int64, error) {
 	coll := dbc.db.Collection(BlockCollection)
-	return coll.CountDocuments(ctx, bson.M{})
+	return coll.EstimatedDocumentCount(ctx)
 }
 
 func (dbc *DbContext) insertBlock(ctx context.Context, block *Block, upsert bool) error {
