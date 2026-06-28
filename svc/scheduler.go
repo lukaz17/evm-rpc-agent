@@ -32,13 +32,13 @@ type Scheduler struct {
 
 	jobs     map[string]*ScheduledJob
 	jobsMu   sync.RWMutex
-	tickMs   int64
+	tickMs   uint64
 	exitChan chan struct{}
 	wg       sync.WaitGroup
 }
 
 // Return new Scheduler instance.
-func NewScheduler(tickMs int64, logger zerolog.Logger) *Scheduler {
+func NewScheduler(tickMs uint64, logger zerolog.Logger) *Scheduler {
 	if tickMs < 250 {
 		tickMs = 250
 	}
@@ -149,7 +149,7 @@ func (s *Scheduler) executeDueJobs() {
 		for _, id := range dueJobIDs {
 			job := s.jobs[id]
 			if job != nil && job.IntervalMs > 0 {
-				job.NextExecutionMs = now - (now % job.IntervalMs) + job.IntervalMs
+				job.NextExecutionMs = now - (now % int64(job.IntervalMs)) + int64(job.IntervalMs)
 			} else if job != nil && job.IntervalMs <= 0 {
 				delete(s.jobs, id)
 			}
@@ -161,7 +161,7 @@ func (s *Scheduler) executeDueJobs() {
 // SchedulerParams contain the parameters for scheduling and unscheduling jobs.
 type SchedulerParams struct {
 	Command    string
-	IntervalMs int64
+	IntervalMs uint64
 	JobID      string
 	Params     multiplex.ExecParams
 	ServiceID  string
@@ -171,7 +171,7 @@ type SchedulerParams struct {
 func NewSchedulerParams(msg *multiplex.ServiceMessage) *SchedulerParams {
 	return &SchedulerParams{
 		Command:    msg.GetParam("command", "").(string),
-		IntervalMs: msg.GetParam("interval_ms", int64(0)).(int64),
+		IntervalMs: msg.GetParam("interval_ms", uint64(0)).(uint64),
 		JobID:      msg.GetParam("job_id", "").(string),
 		Params:     msg.GetParam("params", multiplex.ExecParams{}).(multiplex.ExecParams),
 		ServiceID:  msg.GetParam("service_id", "").(string),
@@ -180,7 +180,7 @@ func NewSchedulerParams(msg *multiplex.ServiceMessage) *SchedulerParams {
 
 // ScheduledJob contain parameters for a recurring job.
 type ScheduledJob struct {
-	IntervalMs      int64
+	IntervalMs      uint64
 	ServiceID       string
 	Command         string
 	Params          multiplex.ExecParams

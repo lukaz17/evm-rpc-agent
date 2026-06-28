@@ -30,14 +30,16 @@ type CrawlEthData struct {
 	multiplex.ServiceCore
 	i *multiplex.ServiceCoreInternal
 
-	batchSize int
-	target    *LatestBlock
+	batchSize  uint64
+	blockDelay uint64
+	target     *LatestBlock
 }
 
 // Return new CrawlEthData instance.
-func NewCrawlEthData(batchSize int, logger zerolog.Logger) *CrawlEthData {
+func NewCrawlEthData(batchSize uint64, blockDelay uint64, logger zerolog.Logger) *CrawlEthData {
 	svc := &CrawlEthData{
-		batchSize: batchSize,
+		batchSize:  batchSize,
+		blockDelay: blockDelay,
 		target: &LatestBlock{
 			Block:     new(multiplex.Uint64ThreadSafe),
 			CallTrace: new(multiplex.Uint64ThreadSafe),
@@ -67,8 +69,15 @@ func (s *CrawlEthData) coreProcessHook(workerID uint64, msg *multiplex.ServiceMe
 			return &multiplex.HookState{Handled: true}
 		}
 
-		s.dispatchBlocks(workerID, blockNumResult.Data)
-		s.dispatchCallTraces(workerID, blockNumResult.Data)
+		safeBlock := blockNumResult.Data
+		if s.blockDelay >= safeBlock {
+			safeBlock = 0
+		} else {
+			safeBlock -= s.blockDelay
+		}
+
+		s.dispatchBlocks(workerID, safeBlock)
+		s.dispatchCallTraces(workerID, safeBlock)
 
 		msg.Return(true)
 

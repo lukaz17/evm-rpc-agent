@@ -78,7 +78,7 @@ func NewController(cfg *config.ServiceConfig, rpc *rpc.Client, dbc *db.DbContext
 		exclCallEthRpcSvc.SetWorker(1)
 		router.Register(exclCallEthRpcSvc)
 
-		crawlEthDataSvc := NewCrawlEthData(cfg.CrawlBatchSize, logger)
+		crawlEthDataSvc := NewCrawlEthData(cfg.CrawlBatchSize, cfg.CrawlBlockDelay, logger)
 		crawlEthDataSvc.SetRouter(router)
 		crawlEthDataSvc.SetWorker(1)
 		router.Register(crawlEthDataSvc)
@@ -121,7 +121,7 @@ func (c *Controller) DispatchOnce(serviceID string, command string, params multi
 }
 
 // Schedule a recurring job.
-func (c *Controller) ScheduleJob(jobID string, intervalMs int64, serviceID string, command string, params multiplex.ExecParams) {
+func (c *Controller) ScheduleJob(jobID string, intervalMs uint64, serviceID string, command string, params multiplex.ExecParams) {
 	p := multiplex.ExecParams{
 		"job_id":      jobID,
 		"interval_ms": intervalMs,

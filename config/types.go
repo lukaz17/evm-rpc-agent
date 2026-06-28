@@ -55,11 +55,12 @@ type RPCConfig struct {
 
 // ServiceConfig contains configurations for background processor.
 type ServiceConfig struct {
-	CrawlIntervalMs  int64 `koanf:"crawl_interval_ms"`
-	CrawlBatchSize   int   `koanf:"crawl_batch_size"`
-	MaxRpcRrtryCount int   `koanf:"max_rpc_retry_count"`
-	SchedulerTickMs  int64 `koanf:"scheduler_tick_ms"`
+	CrawlIntervalMs  uint64 `koanf:"crawl_interval_ms"`
+	CrawlBatchSize   uint64 `koanf:"crawl_batch_size"`
+	CrawlBlockDelay  uint64 `koanf:"crawl_block_delay"`
+	MaxRpcRrtryCount uint64 `koanf:"max_rpc_retry_count"`
+	SchedulerTickMs  uint64 `koanf:"scheduler_tick_ms"`
 
-	HistoricalApiWorkerCount int `koanf:"historical_api_worker_count"`
-	StandardApiWorkerCount   int `koanf:"standard_api_worker_count"`
+	HistoricalApiWorkerCount uint64 `koanf:"historical_api_worker_count"`
+	StandardApiWorkerCount   uint64 `koanf:"standard_api_worker_count"`
 }

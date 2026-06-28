@@ -60,7 +60,7 @@ func (m *ServiceModule) Run(cfg *config.RootConfig) error {
 		m.logger.Info().Msg("MongoDB disconnected.")
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 170*time.Second)
 	blockCount, err := dbc.CountBlocks(ctx)
 	if err != nil {
 		m.logger.Warn().Err(err).Msg("Failed to count blocks collection.")
@@ -80,6 +80,7 @@ func (m *ServiceModule) Run(cfg *config.RootConfig) error {
 	svcCfg := &config.ServiceConfig{
 		CrawlIntervalMs:  cfg.Service.CrawlIntervalMs,
 		CrawlBatchSize:   cfg.Service.CrawlBatchSize,
+		CrawlBlockDelay:  cfg.Service.CrawlBlockDelay,
 		MaxRpcRrtryCount: cfg.Service.MaxRpcRrtryCount,
 		SchedulerTickMs:  cfg.Service.SchedulerTickMs,
 
@@ -90,14 +91,14 @@ func (m *ServiceModule) Run(cfg *config.RootConfig) error {
 	controller := svc.NewController(svcCfg, rpcClient, dbc, m.logger)
 
 	intervalMs := svcCfg.CrawlIntervalMs
-	if intervalMs <= 0 {
+	if intervalMs == 0 {
 		intervalMs = 1000
-		m.logger.Warn().Int64("default", intervalMs).Msg("CrawlIntervalMs is zero or negative, using default.")
+		m.logger.Warn().Uint64("default", intervalMs).Msg("CrawlIntervalMs is zero, using default.")
 	}
 	batchSize := svcCfg.CrawlBatchSize
-	if batchSize <= 0 {
+	if batchSize == 0 {
 		batchSize = 10
-		m.logger.Warn().Int("default", batchSize).Msg("CrawlBatchSize is zero or negative, using default.")
+		m.logger.Warn().Uint64("default", batchSize).Msg("CrawlBatchSize is zero, using default.")
 	}
 
 	crawlMsg := multiplex.ExecParams{

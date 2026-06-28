@@ -92,6 +92,7 @@ func DefaultConfig() *koanf.Koanf {
 			Service: &ServiceConfig{
 				CrawlIntervalMs:  1000,
 				CrawlBatchSize:   10,
+				CrawlBlockDelay:  15,
 				MaxRpcRrtryCount: 5,
 				SchedulerTickMs:  250,
 
