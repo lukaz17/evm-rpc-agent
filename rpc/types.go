@@ -91,15 +91,15 @@ func (b *Block) Uncles() ([]core.Bytes32, error) {
 
 // CallFrame represents a single call frame of call tracer.
 type CallFrame struct {
-	From    core.Address  `json:"from"`
-	Gas     core.Integer  `json:"gas"`
-	GasUsed core.Integer  `json:"gasUsed"`
-	To      core.Address  `json:"to"`
-	Input   core.Bytes    `json:"input"`
-	Output  core.Bytes    `json:"output,omitempty"`
-	Value   core.Integer  `json:"value"`
-	Type    string      `json:"type"`
-	Calls   []CallFrame `json:"calls,omitempty"`
+	From    core.Address `json:"from"`
+	Gas     core.Integer `json:"gas"`
+	GasUsed core.Integer `json:"gasUsed"`
+	To      core.Address `json:"to"`
+	Input   core.Bytes   `json:"input"`
+	Output  core.Bytes   `json:"output,omitempty"`
+	Value   core.Integer `json:"value"`
+	Type    string       `json:"type"`
+	Calls   []CallFrame  `json:"calls,omitempty"`
 }
 
 // StructLog represents a single EVM opcode execution step.

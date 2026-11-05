@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	rpcEndpoint  = "http://eth.tforce.xyz"
+	rpcEndpoint  = "http://localhost:8545"
 	databaseUri  = "mongodb://localhost:27017"
 	databaseName = "evm-rpc-agent-test"
 )

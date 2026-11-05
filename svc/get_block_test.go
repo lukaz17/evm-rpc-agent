@@ -1,18 +1,19 @@
-// Copyright (C) 2025 Nguyen Nhat Tung
-// This file is part of EVM RPC Agent
+// Copyright (C) 2025  Nguyen Nhat Tung
 //
-// EVM RPC Agent is free software: you can redistribute it and/or modify
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// EVM RPC Agent is distributed in the hope that it will be useful,
+// This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with EVM RPC Agent. If not, see <https://www.gnu.org/licenses/>.
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+//go:build integration
 
 package svc
 
@@ -29,7 +30,7 @@ import (
 func TestGetBlock_DownloadBlocks(t *testing.T) {
 	fromBlock := big.NewInt(102)
 	toBlock := big.NewInt(117)
-	batchSize := 8
+	batchSize := uint64(8)
 	expectedCount := int(toBlock.Int64()-fromBlock.Int64()) + 1
 
 	dbc := newTestDbContext(t, []string{db.BlockCollection})
