@@ -87,9 +87,9 @@ func Execute() {
 		Use: "evm-rpc-agent",
 		Long: fmt.Sprintf(
 			"EVM RPC Agent v%s.\n\n"+
-				"A lightweight agent for proxying, monitoring, and managing EVM-compatible blockchain RPC requests.",
+				"A lightweight agent that crawls EVM-compatible blockchain data into a database and serves RPC requests from it, passing through to the RPC node when needed.",
 			version()),
-		Short:   "EVM RPC agent for proxying and managing Ethereum JSON-RPC requests",
+		Short:   "EVM RPC agent for crawling blockchain data and serving RPC requests from a database",
 		Version: version(),
 	}
 

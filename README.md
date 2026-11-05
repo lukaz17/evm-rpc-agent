@@ -1,6 +1,9 @@
 # EVM RPC Agent
 
-Simple application for caching and routing RPC requests.
+EVM RPC Agent sits between applications and an EVM-compatible RPC node. It has two main features:
+
+- Crawl blockchain data from the RPC node and store it in a database.
+- Serve RPC requests from the database first, and pass a request through to the RPC node when the data is not found or the request is not supported.
 
 ## License
 
