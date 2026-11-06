@@ -60,6 +60,7 @@ type ServiceConfig struct {
 	CrawlBlockDelay  uint64 `koanf:"crawl_block_delay"`
 	MaxRpcRrtryCount uint64 `koanf:"max_rpc_retry_count"`
 	SchedulerTickMs  uint64 `koanf:"scheduler_tick_ms"`
+	AnomalyDir       string `koanf:"anomaly_dir"`
 
 	HistoricalApiWorkerCount uint64 `koanf:"historical_api_worker_count"`
 	StandardApiWorkerCount   uint64 `koanf:"standard_api_worker_count"`

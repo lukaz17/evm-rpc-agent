@@ -83,6 +83,7 @@ func (m *ServiceModule) Run(cfg *config.RootConfig) error {
 		CrawlBlockDelay:  cfg.Service.CrawlBlockDelay,
 		MaxRpcRrtryCount: cfg.Service.MaxRpcRrtryCount,
 		SchedulerTickMs:  cfg.Service.SchedulerTickMs,
+		AnomalyDir:       cfg.Service.AnomalyDir,
 
 		HistoricalApiWorkerCount: cfg.Service.HistoricalApiWorkerCount,
 		StandardApiWorkerCount:   cfg.Service.StandardApiWorkerCount,

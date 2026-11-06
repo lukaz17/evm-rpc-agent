@@ -95,6 +95,7 @@ func DefaultConfig() *koanf.Koanf {
 				CrawlBlockDelay:  15,
 				MaxRpcRrtryCount: 5,
 				SchedulerTickMs:  250,
+				AnomalyDir:       "anomalies",
 
 				HistoricalApiWorkerCount: 8,
 				StandardApiWorkerCount:   16,

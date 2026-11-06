@@ -56,6 +56,11 @@ func NewController(cfg *config.ServiceConfig, rpc *rpc.Client, dbc *db.DbContext
 	notifySvc.SetWorker(1)
 	router.Register(notifySvc)
 
+	recordAnomalySvc := NewRecordAnomaly(cfg.AnomalyDir, logger)
+	recordAnomalySvc.SetRouter(router)
+	recordAnomalySvc.SetWorker(1)
+	router.Register(recordAnomalySvc)
+
 	traceBlockSvc := NewTraceBlock(logger)
 	traceBlockSvc.SetRouter(router)
 	traceBlockSvc.SetWorker(2)

@@ -110,6 +110,7 @@ func (s *CallEthApi) coreProcessHook(workerID uint64, msg *multiplex.ServiceMess
 			Data: make([]*CallEthApiItem, len(requests)),
 		}
 		errorCount := 0
+		anomalyCount := 0
 		if len(requests) > 0 {
 			signal.Add(len(requests))
 			for _, request := range requests {
@@ -126,13 +127,15 @@ func (s *CallEthApi) coreProcessHook(workerID uint64, msg *multiplex.ServiceMess
 				}
 				if result.Data[i].Error != nil {
 					errorCount++
+					continue
 				}
+				anomalyCount += s.dispatchBlockAnomalies(workerID, blockNumber, callRpcResult.Data)
 			}
 			if errorCount > 0 {
 				result.Error = errors.New("error while invoking api, check inner data for details")
 			}
 		}
-		s.i.Logger.Infof("%s#%02d: %d blocks retrieved in %v. Error count = %d.", s.i.ServiceID, workerID, len(requests), time.Since(startTime), errorCount)
+		s.i.Logger.Infof("%s#%02d: %d blocks retrieved in %v. Error count = %d. Anomaly count = %d.", s.i.ServiceID, workerID, len(requests), time.Since(startTime), errorCount, anomalyCount)
 		msg.Return(result)
 	case "trace_call":
 		fallthrough
@@ -173,6 +176,7 @@ func (s *CallEthApi) coreProcessHook(workerID uint64, msg *multiplex.ServiceMess
 			Data: make([]*CallEthApiItem, len(requests)),
 		}
 		errorCount := 0
+		anomalyCount := 0
 		if len(requests) > 0 {
 			signal.Add(len(requests))
 			for _, request := range requests {
@@ -189,19 +193,55 @@ func (s *CallEthApi) coreProcessHook(workerID uint64, msg *multiplex.ServiceMess
 				}
 				if result.Data[i].Error != nil {
 					errorCount++
+					continue
 				}
+				anomalyCount += s.dispatchTraceTxAnomalies(workerID, blockNumber, callRpcResult.Data)
 			}
 			if errorCount > 0 {
 				result.Error = errors.New("error while invoking api, check inner data for details")
 			}
 		}
-		s.i.Logger.Infof("%s#%02d: %d trace blocks retrieved in %v. Error count = %d.", s.i.ServiceID, workerID, len(requests), time.Since(startTime), errorCount)
+		s.i.Logger.Infof("%s#%02d: %d trace blocks retrieved in %v. Error count = %d. Anomaly count = %d.", s.i.ServiceID, workerID, len(requests), time.Since(startTime), errorCount, anomalyCount)
 		msg.Return(result)
 	default:
 		s.i.Logger.Warnf("%s#%02d: Unknown command %s.", s.i.ServiceID, workerID, msg.Command)
 		msg.Return(nil)
 	}
 	return &multiplex.HookState{Handled: true}
+}
+
+// Dispatch anomaly records to RecordAnomaly without waiting for the writes.
+func (s *CallEthApi) dispatchAnomalyRecords(records []*RecordAnomalyParams) int {
+	for _, record := range records {
+		s.Dispatch("RecordAnomaly", "record", multiplex.ExecParams{
+			"type":         record.Type,
+			"block_number": record.BlockNumber,
+			"tx_index":     record.TxIndex,
+			"tx_hash":      record.TxHash,
+			"detail":       record.Detail,
+		})
+	}
+	return len(records)
+}
+
+// Detect data anomalies in a successful eth_getBlockByNumber response and dispatch their records to RecordAnomaly.
+func (s *CallEthApi) dispatchBlockAnomalies(workerID uint64, blockNumber *big.Int, blockRaw json.RawMessage) int {
+	records, err := emptyAttestorRecords(blockNumber, blockRaw)
+	if err != nil {
+		s.i.Logger.Warnf("%s#%02d: Block anomaly detection failed for block %s. Error: %v.", s.i.ServiceID, workerID, blockNumber.String(), err)
+		return 0
+	}
+	return s.dispatchAnomalyRecords(records)
+}
+
+// Detect data anomalies in a successful debug_traceBlockByNumber response and dispatch their records to RecordAnomaly.
+func (s *CallEthApi) dispatchTraceTxAnomalies(workerID uint64, blockNumber *big.Int, traceRaw json.RawMessage) int {
+	records, err := traceTxErrorRecords(blockNumber, traceRaw)
+	if err != nil {
+		s.i.Logger.Warnf("%s#%02d: Trace anomaly detection failed for block %s. Error: %v.", s.i.ServiceID, workerID, blockNumber.String(), err)
+		return 0
+	}
+	return s.dispatchAnomalyRecords(records)
 }
 
 // CallEthApiParams contains parameters of all commands of CallEthApi.
