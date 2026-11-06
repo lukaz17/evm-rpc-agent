@@ -210,7 +210,7 @@ func newTestControllerWithTickMs(t *testing.T, tickMs uint64, dbc *db.DbContext)
 		Logger()
 
 	cfg := &config.ServiceConfig{
-		MaxRpcRrtryCount:         3,
+		MaxRpcRetryCount:         3,
 		HistoricalApiWorkerCount: 1,
 		StandardApiWorkerCount:   1,
 		SchedulerTickMs:          tickMs,

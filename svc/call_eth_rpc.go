@@ -42,7 +42,7 @@ func NewCallEthRpc(name string, rpc *rpc.Client, cfg *config.ServiceConfig, logg
 	}
 	svc.i = svc.InitServiceCore(name, config.ZerologAdapter{Logger: logger}, svc.coreProcessHook)
 	svc.o = &NetworkOptions{
-		MaxRetries:  cfg.MaxRpcRrtryCount,
+		MaxRetries:  cfg.MaxRpcRetryCount,
 		MaxRetryGap: 200 * 1000000,
 	}
 	return svc

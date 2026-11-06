@@ -42,7 +42,7 @@ func NewController(cfg *config.ServiceConfig, rpc *rpc.Client, dbc *db.DbContext
 	scheduler.SetWorker(1)
 	router.Register(scheduler)
 
-	callEthApiSvc := NewCallEthApi(logger)
+	callEthApiSvc := NewCallEthApi(cfg, logger)
 	callEthApiSvc.SetRouter(router)
 	callEthApiSvc.SetWorker(4)
 	router.Register(callEthApiSvc)

@@ -26,6 +26,7 @@ import (
 
 	"github.com/lukaz17/evm-rpc-agent/config"
 	"github.com/lukaz17/evm-rpc-agent/core"
+	"github.com/lukaz17/evm-rpc-agent/rpc"
 	"github.com/rs/zerolog"
 	"github.com/tforce-io/tf-golib/multiplex"
 )
@@ -34,11 +35,14 @@ import (
 type CallEthApi struct {
 	multiplex.ServiceCore
 	i *multiplex.ServiceCoreInternal
+	o *config.ServiceConfig
 }
 
 // Return new CallEthApi instance.
-func NewCallEthApi(logger zerolog.Logger) *CallEthApi {
-	svc := &CallEthApi{}
+func NewCallEthApi(cfg *config.ServiceConfig, logger zerolog.Logger) *CallEthApi {
+	svc := &CallEthApi{
+		o: cfg,
+	}
 	svc.i = svc.InitServiceCore("CallEthApi", config.ZerologAdapter{Logger: logger}, svc.coreProcessHook)
 	return svc
 }
@@ -148,7 +152,7 @@ func (s *CallEthApi) coreProcessHook(workerID uint64, msg *multiplex.ServiceMess
 		if msg.Command == "trace_call" {
 			for _, blockNumber := range p.BlockNumbers {
 				hexNum := "0x" + blockNumber.Text(16)
-				tracerOption := map[string]string{"tracer": "callTracer"}
+				tracerOption := traceBlockTracerOptions(s.o.TraceTimeoutSeconds)
 				request := multiplex.ExecParams{
 					"method":       "debug_traceBlockByNumber",
 					"params":       []any{hexNum, tracerOption},
@@ -162,7 +166,7 @@ func (s *CallEthApi) coreProcessHook(workerID uint64, msg *multiplex.ServiceMess
 		if msg.Command == "trace_calls_range" {
 			for blockNumber := new(big.Int).Set(p.FromBlockNumber); blockNumber.Cmp(p.ToBlockNumber) <= 0; blockNumber.Set(new(big.Int).Add(blockNumber, big.NewInt(1))) {
 				hexNum := "0x" + blockNumber.Text(16)
-				tracerOption := map[string]string{"tracer": "callTracer"}
+				tracerOption := traceBlockTracerOptions(s.o.TraceTimeoutSeconds)
 				request := multiplex.ExecParams{
 					"method":       "debug_traceBlockByNumber",
 					"params":       []any{hexNum, tracerOption},
@@ -279,4 +283,15 @@ type CallEthApiResult struct {
 	Params []any
 	Data   []*CallEthApiItem
 	Error  error
+}
+
+// Build tracer options for debug_traceBlockByNumber; timeoutSeconds of zero omits the timeout param and keeps the node's default.
+func traceBlockTracerOptions(timeoutSeconds uint64) rpc.TraceBlockOptions {
+	tracer := "callTracer"
+	opts := rpc.TraceBlockOptions{Tracer: &tracer}
+	if timeoutSeconds > 0 {
+		timeout := fmt.Sprintf("%ds", timeoutSeconds)
+		opts.Timeout = &timeout
+	}
+	return opts
 }

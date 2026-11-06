@@ -41,7 +41,8 @@ func newTestController(t *testing.T, dbc *db.DbContext) *Controller {
 	rpcClient := rpc.NewClient(rpcEndpoint)
 
 	cfg := &config.ServiceConfig{
-		MaxRpcRrtryCount:         3,
+		MaxRpcRetryCount:         3,
+		TraceTimeoutSeconds:      120,
 		HistoricalApiWorkerCount: 1,
 		StandardApiWorkerCount:   1,
 	}

@@ -78,12 +78,13 @@ func (m *ServiceModule) Run(cfg *config.RootConfig) error {
 	cancel()
 
 	svcCfg := &config.ServiceConfig{
-		CrawlIntervalMs:  cfg.Service.CrawlIntervalMs,
-		CrawlBatchSize:   cfg.Service.CrawlBatchSize,
-		CrawlBlockDelay:  cfg.Service.CrawlBlockDelay,
-		MaxRpcRrtryCount: cfg.Service.MaxRpcRrtryCount,
-		SchedulerTickMs:  cfg.Service.SchedulerTickMs,
-		AnomalyDir:       cfg.Service.AnomalyDir,
+		CrawlIntervalMs:     cfg.Service.CrawlIntervalMs,
+		CrawlBatchSize:      cfg.Service.CrawlBatchSize,
+		CrawlBlockDelay:     cfg.Service.CrawlBlockDelay,
+		MaxRpcRetryCount:    cfg.Service.MaxRpcRetryCount,
+		TraceTimeoutSeconds: cfg.Service.TraceTimeoutSeconds,
+		SchedulerTickMs:     cfg.Service.SchedulerTickMs,
+		AnomalyDir:          cfg.Service.AnomalyDir,
 
 		HistoricalApiWorkerCount: cfg.Service.HistoricalApiWorkerCount,
 		StandardApiWorkerCount:   cfg.Service.StandardApiWorkerCount,
